@@ -1,9 +1,11 @@
-// ==========================================
-// DRINKS & CONNECTIONS
-// Main JavaScript - Supabase
-// ==========================================
 
-// 1. SUPABASE CONNECTION
+// ============================================
+// DRINKS & CONNECTIONS
+// Complete application JavaScript
+// ============================================
+
+// 1. SUPABASE CONFIGURATION
+
 const SUPABASE_URL = "https://xnmvqjbquibqcjryxpge.supabase.co";
 
 const SUPABASE_KEY = "sb_publishable_7YtYRhqp0walmpQX22pYCg_kdt45GEf";
@@ -20,11 +22,12 @@ let currentProfile = null;
 let allMembers = [];
 let nearbyMembers = [];
 let activeChatUser = null;
+let dashboardLoading = false;
 
 
-// ==========================================
+// ============================================
 // 2. HELPER FUNCTIONS
-// ==========================================
+// ============================================
 
 function el(id) {
     return document.getElementById(id);
@@ -35,54 +38,59 @@ function setMessage(message, type = "info") {
     if (!box) return;
 
     box.textContent = message;
-    box.className = type;
+    box.dataset.type = type;
 }
 
 function escapeHTML(value) {
-    return String(value ?? "").replace(/[&<>"']/g, character => ({
+    return String(value ?? "").replace(/[&<>"']/g, char => ({
         "&": "&amp;",
         "<": "&lt;",
         ">": "&gt;",
         '"': "&quot;",
         "'": "&#039;"
-    })[character]);
+    })[char]);
 }
 
 function getInitials(name) {
     return String(name || "Member")
-        .split(" ")
-        .filter(Boolean)
+        .trim()
+        .split(/\s+/)
         .slice(0, 2)
-        .map(word => word[0].toUpperCase())
+        .map(word => word.charAt(0).toUpperCase())
         .join("");
 }
 
+function addListener(id, event, callback) {
+    const element = el(id);
+    if (element) {
+        element.addEventListener(event, callback);
+    }
+}
+
+
+// ============================================
+// 3. DASHBOARD VISIBILITY - IMPORTANT FIX
+// ============================================
+
 function showDashboard(show) {
-    if (el("authSection")) {
-        el("authSection").style.display = show ? "none" : "block";
+    const auth = el("authSection");
+    const dashboard = el("dashboard");
+
+    if (auth) {
+        auth.hidden = show;
+        auth.style.display = show ? "none" : "";
     }
 
-    if (el("dashboard")) {
-        el("dashboard").style.display = show ? "block" : "none";
-    }
-}
-
-function setGpsStatus(message) {
-    if (el("gpsStatus")) {
-        el("gpsStatus").textContent = message;
-    }
-}
-
-function showGpsScanner(show) {
-    if (el("gpsScanner")) {
-        el("gpsScanner").style.display = show ? "block" : "none";
+    if (dashboard) {
+        dashboard.hidden = !show;
+        dashboard.style.display = show ? "block" : "none";
     }
 }
 
 
-// ==========================================
-// 3. AUTHENTICATION
-// ==========================================
+// ============================================
+// 4. REGISTRATION
+// ============================================
 
 async function registerUser(event) {
     event.preventDefault();
@@ -94,33 +102,34 @@ async function registerUser(event) {
     const ageConfirmed = el("ageConfirm")?.checked;
 
     if (!name || !dob || !email || !password) {
-        return setMessage("Please complete all registration fields.", "error");
+        return setMessage("Please complete all fields.", "error");
     }
 
     if (!ageConfirmed) {
-        return setMessage("You must confirm that you are 18 or older.", "error");
+        return setMessage("Please confirm that you are 18 or older.", "error");
     }
 
-    const birthDate = new Date(dob);
+    const birthDate = new Date(dob + "T00:00:00");
     const today = new Date();
 
     let age = today.getFullYear() - birthDate.getFullYear();
 
-    const birthdayNotReached =
+    if (
         today.getMonth() < birthDate.getMonth() ||
         (
             today.getMonth() === birthDate.getMonth() &&
             today.getDate() < birthDate.getDate()
-        );
-
-    if (birthdayNotReached) age--;
+        )
+    ) {
+        age--;
+    }
 
     if (age < 18) {
         return setMessage("You must be at least 18 to join.", "error");
     }
 
     if (password.length < 6) {
-        return setMessage("Your password must be at least 6 characters.", "error");
+        return setMessage("Password must be at least 6 characters.", "error");
     }
 
     setMessage("Creating your account...");
@@ -139,43 +148,35 @@ async function registerUser(event) {
 
         if (error) throw error;
 
-        if (data.user) {
+        if (data.session && data.user) {
             const { error: profileError } = await db
                 .from("profiles")
                 .upsert({
                     id: data.user.id,
                     display_name: name,
-                    bio: "",
-                    city: "",
-                    gender: "",
                     location_sharing_enabled: false
                 });
 
-            if (profileError) {
-                console.error(profileError);
-                return setMessage(
-                    "Your account was created, but your profile needs attention: " +
-                    profileError.message,
-                    "error"
-                );
-            }
-        }
+            if (profileError) throw profileError;
 
-        if (!data.session) {
+            await loadDashboard();
+        } else {
             setMessage(
-                "Account created! Please check your email to confirm your account before logging in.",
+                "Account created! Check your email to confirm your account, then log in.",
                 "success"
             );
-        } else {
-            setMessage("Welcome to Drinks & Connections!", "success");
         }
 
     } catch (error) {
-        console.error(error);
+        console.error("Registration error:", error);
         setMessage(error.message, "error");
     }
 }
 
+
+// ============================================
+// 5. LOGIN
+// ============================================
 
 async function loginUser(event) {
     event.preventDefault();
@@ -190,115 +191,119 @@ async function loginUser(event) {
     setMessage("Logging in...");
 
     try {
-        const { error } = await db.auth.signInWithPassword({
+        const { data, error } = await db.auth.signInWithPassword({
             email,
             password
         });
 
         if (error) throw error;
 
+        currentUser = data.user;
+
         await loadDashboard();
 
     } catch (error) {
-        console.error(error);
+        console.error("Login error:", error);
         setMessage(error.message, "error");
     }
 }
 
 
-async function logoutUser() {
-    const { error } = await db.auth.signOut();
-
-    if (error) {
-        return setMessage(error.message, "error");
-    }
-
-    currentUser = null;
-    currentProfile = null;
-    allMembers = [];
-    nearbyMembers = [];
-    activeChatUser = null;
-
-    showDashboard(false);
-    setMessage("You have logged out.");
-}
-
-
-// ==========================================
-// 4. LOAD USER DASHBOARD
-// ==========================================
+// ============================================
+// 6. LOAD DASHBOARD
+// ============================================
 
 async function loadDashboard() {
-    const { data: userData, error: userError } =
-        await db.auth.getUser();
+    if (dashboardLoading) return;
 
-    if (userError || !userData.user) {
-        currentUser = null;
-        showDashboard(false);
-        return;
-    }
+    dashboardLoading = true;
+    setMessage("Loading your account...");
 
-    currentUser = userData.user;
+    try {
+        const { data, error } = await db.auth.getUser();
 
-    const { data: profile, error } = await db
-        .from("profiles")
-        .select("*")
-        .eq("id", currentUser.id)
-        .maybeSingle();
+        if (error) throw error;
 
-    if (error) {
-        console.error(error);
-        setMessage("Could not load your profile: " + error.message, "error");
-        return;
-    }
-
-    currentProfile = profile;
-
-    if (!currentProfile) {
-        const { data: newProfile, error: createError } = await db
-            .from("profiles")
-            .insert({
-                id: currentUser.id,
-                display_name:
-                    currentUser.user_metadata?.display_name || "New Member",
-                location_sharing_enabled: false
-            })
-            .select()
-            .single();
-
-        if (createError) {
-            console.error(createError);
-            setMessage(createError.message, "error");
+        if (!data.user) {
+            currentUser = null;
+            showDashboard(false);
+            setMessage("Please log in.");
             return;
         }
 
-        currentProfile = newProfile;
+        currentUser = data.user;
+
+        const { data: profile, error: profileError } = await db
+            .from("profiles")
+            .select("*")
+            .eq("id", currentUser.id)
+            .maybeSingle();
+
+        if (profileError) throw profileError;
+
+        if (!profile) {
+            const { data: newProfile, error: createError } = await db
+                .from("profiles")
+                .insert({
+                    id: currentUser.id,
+                    display_name:
+                        currentUser.user_metadata?.display_name || "New Member",
+                    location_sharing_enabled: false
+                })
+                .select()
+                .single();
+
+            if (createError) throw createError;
+
+            currentProfile = newProfile;
+        } else {
+            currentProfile = profile;
+        }
+
+        // Reveal dashboard only after account data has loaded.
+        showDashboard(true);
+
+        if (el("profileEmail")) {
+            el("profileEmail").textContent = currentUser.email || "";
+        }
+
+        loadProfileForm();
+
+        await loadMembers();
+        await loadConnections();
+
+        setMessage(
+            "Welcome back, " +
+            (currentProfile.display_name || "Member") + "!",
+            "success"
+        );
+
+    } catch (error) {
+        console.error("Dashboard error:", error);
+
+        showDashboard(false);
+
+        setMessage(
+            "We recognised your account, but could not load your dashboard: " +
+            error.message,
+            "error"
+        );
+
+    } finally {
+        dashboardLoading = false;
     }
-
-    showDashboard(true);
-
-    if (el("profileEmail")) {
-        el("profileEmail").textContent = currentUser.email;
-    }
-
-    loadProfileForm();
-    await loadMembers();
-    await loadConnections();
-
-    setMessage("Welcome back!", "success");
 }
 
 
-// ==========================================
-// 5. PROFILE
-// ==========================================
+// ============================================
+// 7. PROFILE
+// ============================================
 
 function loadProfileForm() {
     if (!currentProfile) return;
 
     if (el("displayName")) {
-        el("displayName").value =
-            currentProfile.display_name || "";
+        el("displayName").value = currentProfile.display_name || "";
     }
 
     if (el("bio")) {
@@ -313,11 +318,9 @@ function loadProfileForm() {
         el("city").value = currentProfile.city || "";
     }
 
-    const photo = currentProfile.avatar_url;
-
-    if (photo) {
+    if (currentProfile.avatar_url) {
         if (el("profilePhotoPreview")) {
-            el("profilePhotoPreview").src = photo;
+            el("profilePhotoPreview").src = currentProfile.avatar_url;
             el("profilePhotoPreview").style.display = "block";
         }
 
@@ -355,18 +358,20 @@ async function saveProfile(event) {
             ...data
         };
 
-        setMessage("Your profile has been updated!", "success");
+        setMessage("Your profile has been saved!", "success");
+
+        await loadMembers();
 
     } catch (error) {
-        console.error(error);
-        setMessage("Profile update failed: " + error.message, "error");
+        console.error("Profile error:", error);
+        setMessage("Profile could not be saved: " + error.message, "error");
     }
 }
 
 
-// ==========================================
-// 6. PROFILE PHOTO UPLOAD
-// ==========================================
+// ============================================
+// 8. PROFILE PHOTO UPLOAD
+// ============================================
 
 async function uploadProfilePhoto() {
     if (!currentUser) {
@@ -376,19 +381,19 @@ async function uploadProfilePhoto() {
     const file = el("profilePhotoInput")?.files?.[0];
 
     if (!file) {
-        return setMessage("Please choose a photo first.", "error");
+        return setMessage("Choose a photo first.", "error");
     }
 
     if (!file.type.startsWith("image/")) {
-        return setMessage("Please select an image file.", "error");
+        return setMessage("Please select an image.", "error");
     }
 
     if (file.size > 5 * 1024 * 1024) {
-        return setMessage("Your photo must be smaller than 5 MB.", "error");
+        return setMessage("Photo must be smaller than 5 MB.", "error");
     }
 
     const extension = file.name.split(".").pop().toLowerCase();
-    const filePath = `${currentUser.id}/${Date.now()}.${extension}`;
+    const path = `${currentUser.id}/${Date.now()}.${extension}`;
 
     try {
         if (el("photoMessage")) {
@@ -397,7 +402,7 @@ async function uploadProfilePhoto() {
 
         const { error: uploadError } = await db.storage
             .from(PHOTO_BUCKET)
-            .upload(filePath, file, {
+            .upload(path, file, {
                 upsert: true,
                 contentType: file.type
             });
@@ -406,7 +411,7 @@ async function uploadProfilePhoto() {
 
         const { data: urlData } = db.storage
             .from(PHOTO_BUCKET)
-            .getPublicUrl(filePath);
+            .getPublicUrl(path);
 
         const photoURL = urlData.publicUrl;
 
@@ -414,32 +419,26 @@ async function uploadProfilePhoto() {
             .from("profiles")
             .update({
                 avatar_url: photoURL,
-                avatar_path: filePath
+                avatar_path: path
             })
             .eq("id", currentUser.id);
 
         if (updateError) throw updateError;
 
         currentProfile.avatar_url = photoURL;
-        currentProfile.avatar_path = filePath;
+        currentProfile.avatar_path = path;
 
-        if (el("profilePhotoPreview")) {
-            el("profilePhotoPreview").src = photoURL;
-            el("profilePhotoPreview").style.display = "block";
-        }
+        el("profilePhotoPreview").src = photoURL;
+        el("profilePhotoPreview").style.display = "block";
 
-        if (el("profilePhotoPlaceholder")) {
-            el("profilePhotoPlaceholder").style.display = "none";
-        }
+        el("profilePhotoPlaceholder").style.display = "none";
 
-        if (el("photoMessage")) {
-            el("photoMessage").textContent = "Photo uploaded successfully!";
-        }
+        el("photoMessage").textContent = "Photo uploaded successfully!";
 
         await loadMembers();
 
     } catch (error) {
-        console.error(error);
+        console.error("Photo upload error:", error);
 
         if (el("photoMessage")) {
             el("photoMessage").textContent = error.message;
@@ -448,36 +447,41 @@ async function uploadProfilePhoto() {
 }
 
 
-// ==========================================
-// 7. MEMBER CARDS
-// ==========================================
+// ============================================
+// 9. MEMBER CARDS
+// ============================================
 
 function createMemberCard(member, showDistance = false) {
-    const card = document.createElement("div");
+    const card = document.createElement("article");
     card.className = "member-card";
 
     const name = escapeHTML(member.display_name || "Member");
-    const bio = escapeHTML(member.bio || "No bio available yet.");
-    const city = escapeHTML(member.city || "Location not provided");
+    const city = escapeHTML(member.city || "City not provided");
+    const bio = escapeHTML(member.bio || "No bio added yet.");
     const gender = escapeHTML(member.gender || "");
-    const photo = member.avatar_url;
 
-    const avatar = photo
-        ? `<img src="${escapeHTML(photo)}" alt="${name}" class="member-avatar">`
+    const avatar = member.avatar_url
+        ? `<img class="member-avatar" src="${escapeHTML(member.avatar_url)}" alt="${name}">`
         : `<div class="member-avatar-placeholder">${escapeHTML(getInitials(member.display_name))}</div>`;
 
-    const distance = showDistance && Number.isFinite(Number(member.distance_km))
-        ? `<p class="member-distance">📍 Approximately ${Number(member.distance_km).toFixed(1)} km away</p>`
-        : "";
+    let distanceHTML = "";
+
+    if (
+        showDistance &&
+        Number.isFinite(Number(member.distance_km))
+    ) {
+        distanceHTML =
+            `<p class="member-distance">📍 Approximately ${Number(member.distance_km).toFixed(1)} km away</p>`;
+    }
 
     card.innerHTML = `
-        <div class="member-photo">${avatar}</div>
+        <div>${avatar}</div>
         <div class="member-details">
             <h3>${name}</h3>
             <p>${city}</p>
             <p>${gender}</p>
             <p>${bio}</p>
-            ${distance}
+            ${distanceHTML}
             <button type="button" class="like-member">❤️ Connect</button>
             <button type="button" class="message-member">💬 Message</button>
         </div>
@@ -495,9 +499,9 @@ function createMemberCard(member, showDistance = false) {
 }
 
 
-// ==========================================
-// 8. DISCOVER MEMBERS
-// ==========================================
+// ============================================
+// 10. DISCOVER MEMBERS
+// ============================================
 
 async function loadMembers() {
     if (!currentUser) return;
@@ -512,10 +516,11 @@ async function loadMembers() {
         if (error) throw error;
 
         allMembers = data || [];
+
         displayMembers(allMembers);
 
     } catch (error) {
-        console.error(error);
+        console.error("Members error:", error);
         setMessage("Could not load members: " + error.message, "error");
     }
 }
@@ -528,7 +533,7 @@ function displayMembers(members) {
     container.innerHTML = "";
 
     if (!members.length) {
-        container.textContent = "No members found.";
+        container.textContent = "No members found yet.";
         return;
     }
 
@@ -538,32 +543,32 @@ function displayMembers(members) {
 }
 
 
-async function searchMembers() {
-    if (!currentUser) return;
+function searchMembers() {
+    const search =
+        el("memberSearch")?.value.trim().toLowerCase() || "";
 
-    const search = el("memberSearch")?.value.trim().toLowerCase() || "";
     const gender = el("genderFilter")?.value || "";
 
     const filtered = allMembers.filter(member => {
-        const text = [
+        const searchable = [
             member.display_name,
             member.city,
             member.bio
         ].join(" ").toLowerCase();
 
-        const matchesSearch = !search || text.includes(search);
-        const matchesGender = !gender || member.gender === gender;
-
-        return matchesSearch && matchesGender;
+        return (
+            (!search || searchable.includes(search)) &&
+            (!gender || member.gender === gender)
+        );
     });
 
     displayMembers(filtered);
 }
 
 
-// ==========================================
-// 9. CONNECTIONS / LIKES
-// ==========================================
+// ============================================
+// 11. CONNECTIONS
+// ============================================
 
 async function likeMember(memberId) {
     if (!currentUser || memberId === currentUser.id) return;
@@ -586,7 +591,7 @@ async function likeMember(memberId) {
 
         const { data: reverseLike, error: checkError } = await db
             .from("connections")
-            .select("id")
+            .select("user_id")
             .eq("user_id", memberId)
             .eq("liked_user_id", currentUser.id)
             .maybeSingle();
@@ -594,15 +599,15 @@ async function likeMember(memberId) {
         if (checkError) throw checkError;
 
         if (reverseLike) {
-            setMessage("It's a match! You are now connected ❤️", "success");
+            setMessage("It's a match! You are now connected! ❤️", "success");
             await loadConnections();
         } else {
             setMessage("Connection request sent!", "success");
         }
 
     } catch (error) {
-        console.error(error);
-        setMessage("Could not send connection: " + error.message, "error");
+        console.error("Connection error:", error);
+        setMessage("Could not connect: " + error.message, "error");
     }
 }
 
@@ -640,43 +645,51 @@ async function loadConnections() {
         if (contacts) contacts.innerHTML = "";
 
         if (!mutualIds.length) {
-            if (container) container.textContent = "No mutual connections yet.";
-            if (contacts) contacts.textContent = "Your connections will appear here.";
+            if (container) {
+                container.textContent = "No mutual connections yet.";
+            }
+
+            if (contacts) {
+                contacts.textContent = "Your chat contacts will appear here.";
+            }
+
             return;
         }
 
-        const { data: profiles, error: profileError } = await db
+        const { data: profiles, error: profilesError } = await db
             .from("profiles")
             .select("id, display_name, bio, gender, city, avatar_url")
             .in("id", mutualIds);
 
-        if (profileError) throw profileError;
+        if (profilesError) throw profilesError;
 
-        profiles.forEach(member => {
-            if (container) {
-                container.appendChild(createMemberCard(member));
-            }
+        (profiles || []).forEach(member => {
+            container?.appendChild(createMemberCard(member));
 
             if (contacts) {
-                const contact = document.createElement("button");
-                contact.type = "button";
-                contact.className = "chat-contact";
-                contact.textContent = member.display_name || "Member";
-                contact.addEventListener("click", () => openConversation(member));
-                contacts.appendChild(contact);
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "chat-contact";
+                button.textContent = member.display_name || "Member";
+
+                button.addEventListener("click", () => {
+                    openConversation(member);
+                });
+
+                contacts.appendChild(button);
             }
         });
 
     } catch (error) {
-        console.error(error);
+        console.error("Connections error:", error);
         setMessage("Could not load connections: " + error.message, "error");
     }
 }
 
 
-// ==========================================
-// 10. PRIVATE MESSAGING
-// ==========================================
+// ============================================
+// 12. PRIVATE CHAT
+// ============================================
 
 async function openConversation(member) {
     if (!currentUser || !member?.id) return;
@@ -693,6 +706,11 @@ async function openConversation(member) {
     }
 
     await loadMessages();
+
+    el("chatWindow")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+    });
 }
 
 
@@ -724,13 +742,14 @@ async function loadMessages() {
                     : "message received";
 
             bubble.textContent = message.content;
+
             container.appendChild(bubble);
         });
 
         container.scrollTop = container.scrollHeight;
 
     } catch (error) {
-        console.error(error);
+        console.error("Chat error:", error);
         setMessage("Could not load messages: " + error.message, "error");
     }
 }
@@ -740,7 +759,7 @@ async function sendMessage(event) {
     event.preventDefault();
 
     if (!currentUser || !activeChatUser) {
-        return setMessage("Open a conversation first.", "error");
+        return setMessage("Select a connection before sending a message.", "error");
     }
 
     const content = el("messageInput")?.value.trim();
@@ -763,26 +782,26 @@ async function sendMessage(event) {
         await loadMessages();
 
     } catch (error) {
-        console.error(error);
+        console.error("Send message error:", error);
         setMessage("Message could not be sent: " + error.message, "error");
     }
 }
 
 
-// ==========================================
-// 11. GPS - FIND PEOPLE NEAR ME
-// ==========================================
+// ============================================
+// 13. GPS LOCATION
+// ============================================
 
 function getUserLocation() {
     return new Promise((resolve, reject) => {
         if (!navigator.geolocation) {
-            reject(new Error("Your browser does not support GPS."));
+            reject(new Error("GPS is not supported by this browser."));
             return;
         }
 
         navigator.geolocation.getCurrentPosition(
-            position => resolve(position),
-            error => reject(error),
+            resolve,
+            reject,
             {
                 enableHighAccuracy: true,
                 timeout: 15000,
@@ -793,13 +812,23 @@ function getUserLocation() {
 }
 
 
+function setGpsStatus(message) {
+    if (el("gpsStatus")) {
+        el("gpsStatus").textContent = message;
+    }
+}
+
+
+function showGpsScanner(show) {
+    if (el("gpsScanner")) {
+        el("gpsScanner").style.display = show ? "block" : "none";
+    }
+}
+
+
 async function findNearbyMembers() {
     if (!currentUser) {
         return setGpsStatus("Please log in first.");
-    }
-
-    if (!navigator.geolocation) {
-        return setGpsStatus("GPS is not supported by this browser.");
     }
 
     const button = el("findNearbyButton");
@@ -807,23 +836,21 @@ async function findNearbyMembers() {
     if (button) button.disabled = true;
 
     showGpsScanner(true);
-    setGpsStatus("Searching for your location...");
+    setGpsStatus("Requesting your location...");
 
     try {
-        // Only obtains location after the member clicks the button.
         const position = await getUserLocation();
 
         const latitude = position.coords.latitude;
         const longitude = position.coords.longitude;
 
-        setGpsStatus("Location found. Finding nearby members...");
+        setGpsStatus("Location found. Searching nearby...");
 
-        // Save location only to the signed-in member's own profile.
         const { error: updateError } = await db
             .from("profiles")
             .update({
-                latitude,
-                longitude,
+                latitude: latitude,
+                longitude: longitude,
                 location_sharing_enabled: true,
                 location_updated_at: new Date().toISOString()
             })
@@ -831,14 +858,14 @@ async function findNearbyMembers() {
 
         if (updateError) throw updateError;
 
-        const maxDistance = Number(el("distanceFilter")?.value || 25);
+        const distance = Number(el("distanceFilter")?.value || 25);
 
         const { data, error } = await db.rpc(
             "find_nearby_members",
             {
                 search_lat: latitude,
                 search_lon: longitude,
-                max_distance_km: maxDistance
+                max_distance_km: distance
             }
         );
 
@@ -851,8 +878,8 @@ async function findNearbyMembers() {
 
         displayNearbyMembers();
 
-        if (!nearbyMembers.length) {
-            setGpsStatus("No nearby members found. Try a larger distance.");
+        if (nearbyMembers.length === 0) {
+            setGpsStatus("No nearby members found. Try a wider search distance.");
         } else {
             setGpsStatus(
                 `${nearbyMembers.length} nearby member(s) found!`
@@ -860,12 +887,12 @@ async function findNearbyMembers() {
         }
 
     } catch (error) {
-        console.error(error);
+        console.error("GPS error:", error);
 
-        let message = error.message || "Could not search for nearby members.";
+        let message = error.message || "GPS search failed.";
 
         if (error.code === 1) {
-            message = "Location permission was denied. Please allow location access in your browser.";
+            message = "Location permission denied. Allow location access in your browser.";
         } else if (error.code === 2) {
             message = "Your location could not be determined. Try again.";
         } else if (error.code === 3) {
@@ -876,6 +903,7 @@ async function findNearbyMembers() {
 
     } finally {
         showGpsScanner(false);
+
         if (button) button.disabled = false;
     }
 }
@@ -888,7 +916,7 @@ function displayNearbyMembers() {
     container.innerHTML = "";
 
     if (!nearbyMembers.length) {
-        container.textContent = "No nearby members to display.";
+        container.textContent = "No nearby members found.";
         return;
     }
 
@@ -898,9 +926,9 @@ function displayNearbyMembers() {
 }
 
 
-// ==========================================
-// 12. DISABLE LOCATION SHARING
-// ==========================================
+// ============================================
+// 14. TURN OFF LOCATION SHARING
+// ============================================
 
 async function disableLocationSharing() {
     if (!currentUser) return;
@@ -921,49 +949,63 @@ async function disableLocationSharing() {
         nearbyMembers = [];
 
         if (el("nearbyResults")) {
-            el("nearbyResults").innerHTML =
-                "Location sharing has been disabled.";
+            el("nearbyResults").innerHTML = "";
         }
 
-        setGpsStatus("Your location is no longer being shared.");
+        setGpsStatus("Location sharing has been turned off.");
 
     } catch (error) {
-        console.error(error);
-        setGpsStatus("Could not disable location sharing: " + error.message);
+        console.error("Location sharing error:", error);
+        setGpsStatus("Could not turn off location sharing: " + error.message);
     }
 }
 
 
-// ==========================================
-// 13. BUTTONS AND EVENT LISTENERS
-// ==========================================
+// ============================================
+// 15. LOGOUT
+// ============================================
 
-function addListener(id, event, callback) {
-    const element = el(id);
+async function logoutUser() {
+    try {
+        const { error } = await db.auth.signOut();
 
-    if (element) {
-        element.addEventListener(event, callback);
+        if (error) throw error;
+
+        currentUser = null;
+        currentProfile = null;
+        allMembers = [];
+        nearbyMembers = [];
+        activeChatUser = null;
+
+        showDashboard(false);
+        setMessage("You have logged out.");
+
+    } catch (error) {
+        console.error("Logout error:", error);
+        setMessage(error.message, "error");
     }
 }
+
+
+// ============================================
+// 16. APPLICATION STARTUP
+// ============================================
 
 function setupApp() {
-
-    // Authentication
     addListener("registerForm", "submit", registerUser);
     addListener("loginForm", "submit", loginUser);
     addListener("logoutButton", "click", logoutUser);
 
-    // Profile
     addListener("profileForm", "submit", saveProfile);
     addListener("uploadPhotoButton", "click", uploadProfilePhoto);
 
-    // Member search
     addListener("searchMembers", "click", searchMembers);
-
     addListener("memberSearch", "input", searchMembers);
     addListener("genderFilter", "change", searchMembers);
 
-    // Messaging
+    addListener("findNearbyButton", "click", findNearbyMembers);
+    addListener("disableLocationButton", "click", disableLocationSharing);
+
     addListener("messageForm", "submit", sendMessage);
     addListener("refreshChat", "click", loadMessages);
 
@@ -975,35 +1017,55 @@ function setupApp() {
         activeChatUser = null;
     });
 
-    // GPS
-    addListener("findNearbyButton", "click", findNearbyMembers);
-    addListener("disableLocationButton", "click", disableLocationSharing);
-
-    // Restore login session
+    // Listen for sign-in and sign-out events.
     db.auth.onAuthStateChange((event, session) => {
-        if (session?.user) {
-            setTimeout(() => loadDashboard(), 0);
-        } else {
+        if (event === "SIGNED_OUT") {
             currentUser = null;
             currentProfile = null;
             showDashboard(false);
+        }
+
+        if (event === "SIGNED_IN" && session?.user) {
+            currentUser = session.user;
+
+            // Allow the login handler to load the dashboard itself.
+            if (!dashboardLoading) {
+                setTimeout(() => loadDashboard(), 0);
+            }
         }
     });
 }
 
 
-// ==========================================
-// 14. START APPLICATION
-// ==========================================
+// ============================================
+// 17. INITIALISE THE APP
+// ============================================
 
 document.addEventListener("DOMContentLoaded", async () => {
     setupApp();
 
-    const { data } = await db.auth.getSession();
+    showDashboard(false);
+    setMessage("Checking your account...");
 
-    if (data.session?.user) {
-        await loadDashboard();
-    } else {
+    try {
+        const { data, error } = await db.auth.getSession();
+
+        if (error) throw error;
+
+        if (data.session?.user) {
+            await loadDashboard();
+        } else {
+            showDashboard(false);
+            setMessage("Welcome to Drinks & Connections!");
+        }
+
+    } catch (error) {
+        console.error("Startup error:", error);
         showDashboard(false);
+
+        setMessage(
+            "Could not start the app: " + error.message,
+            "error"
+        );
     }
 });
