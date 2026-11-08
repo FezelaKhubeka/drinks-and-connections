@@ -1,0 +1,544 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#111114">
+<title>Drinks & Connections | D&C</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+:root {
+  --gold: #e9a34b;
+  --dark: #111114;
+  --card: #1d1d24;
+  --muted: #a6a6b1;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: Arial, sans-serif;
+  background: var(--dark);
+  color: white;
+  min-height: 100vh;
+}
+header {
+  padding: 22px 7%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #303039;
+}
+.brand {
+  font-size: 25px;
+  font-weight: bold;
+  color: var(--gold);
+}
+.brand span { color: white; }
+header a { color: white; text-decoration: none; }
+.hero {
+  text-align: center;
+  padding: 65px 20px 45px;
+  max-width: 850px;
+  margin: auto;
+}
+.hero h1 {
+  font-size: clamp(35px, 7vw, 60px);
+  line-height: 1.12;
+  margin-bottom: 20px;
+}
+.hero h1 span { color: var(--gold); }
+.hero p {
+  color: var(--muted);
+  line-height: 1.7;
+  font-size: 16px;
+}
+.container {
+  width: min(100% - 30px, 480px);
+  margin: 0 auto 55px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid #34343e;
+  border-radius: 18px;
+  padding: 28px;
+  box-shadow: 0 15px 45px #0005;
+}
+h2 { margin-bottom: 20px; }
+label {
+  display: block;
+  font-size: 13px;
+  color: #ddd;
+  margin: 12px 0 7px;
+}
+input, textarea, select {
+  width: 100%;
+  padding: 14px;
+  border-radius: 9px;
+  border: 1px solid #41414d;
+  background: #121217;
+  color: white;
+  font-size: 15px;
+  outline: none;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--gold);
+}
+button {
+  width: 100%;
+  padding: 15px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--gold);
+  color: #17120c;
+  font-weight: bold;
+  font-size: 15px;
+  cursor: pointer;
+  margin-top: 16px;
+}
+button:hover { background: #ffc16f; }
+button:disabled { opacity: .5; cursor: wait; }
+.secondary {
+  background: #383842;
+  color: white;
+}
+.switch {
+  text-align: center;
+  margin-top: 20px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.switch a { color: var(--gold); cursor: pointer; }
+.hidden { display: none !important; }
+.message {
+  margin-top: 15px;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.profile {
+  background: #121217;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.features {
+  max-width: 1000px;
+  margin: 0 auto 65px;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
+  gap: 15px;
+}
+.feature {
+  background: var(--card);
+  border: 1px solid #34343e;
+  border-radius: 13px;
+  padding: 23px;
+}
+.feature h3 { color: var(--gold); margin-bottom: 10px; }
+.feature p { color: var(--muted); line-height: 1.6; font-size: 14px; }
+footer {
+  border-top: 1px solid #303039;
+  padding: 25px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.consent input { width: auto; margin-top: 2px; }
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="brand">🥂 D&C<span>.</span></div>
+  <a href="#account">Join D&C</a>
+</header>
+
+<section class="hero">
+  <h1>Meet people.<br>Make <span>connections.</span></h1>
+  <p>
+    Discover new people, share experiences and find someone
+    to enjoy a drink with. Real connections start here.
+  </p>
+</section>
+
+<main class="container" id="account">
+
+  <div class="card" id="authSection">
+
+    <div id="registerPanel">
+      <h2>Create your account 🥂</h2>
+
+      <form id="registerForm">
+        <label for="regName">Your name</label>
+        <input id="regName" maxlength="60" required
+          placeholder="Enter your name">
+
+        <label for="regDob">Date of birth</label>
+        <input id="regDob" type="date" required>
+
+        <label for="regEmail">Email address</label>
+        <input id="regEmail" type="email" required
+          autocomplete="email" placeholder="you@example.com">
+
+        <label for="regPassword">Password</label>
+        <input id="regPassword" type="password" minlength="8"
+          required autocomplete="new-password"
+          placeholder="At least 8 characters">
+
+        <div class="consent">
+          <input type="checkbox" id="terms" required>
+          <label for="terms">
+            I confirm that I am 18 or older and agree to the
+            platform terms and privacy policy.
+          </label>
+        </div>
+
+        <button id="registerButton" type="submit">
+          Create Account
+        </button>
+      </form>
+
+      <p class="switch">
+        Already a member?
+        <a id="showLogin">Log in</a>
+      </p>
+    </div>
+
+    <div id="loginPanel" class="hidden">
+      <h2>Welcome back 🥂</h2>
+
+      <form id="loginForm">
+        <label for="loginEmail">Email address</label>
+        <input id="loginEmail" type="email" required
+          autocomplete="email">
+
+        <label for="loginPassword">Password</label>
+        <input id="loginPassword" type="password" required
+          autocomplete="current-password">
+
+        <button type="submit" id="loginButton">Log In</button>
+      </form>
+
+      <p class="switch">
+        Don't have an account?
+        <a id="showRegister">Join D&C</a>
+      </p>
+    </div>
+
+  </div>
+
+  <div class="card hidden" id="dashboard">
+    <h2>Welcome to D&C! 🎉</h2>
+    <div class="profile">
+      <p class="small">YOUR MEMBER PROFILE</p>
+      <h2 id="profileName">Member</h2>
+      <p id="profileEmail" class="small"></p>
+    </div>
+
+    <h3>Edit your profile</h3>
+
+    <form id="profileForm">
+      <label for="bio">About me</label>
+      <textarea id="bio" rows="4" maxlength="500"
+        placeholder="Tell people about yourself"></textarea>
+
+      <label for="gender">Gender</label>
+      <select id="gender">
+        <option value="">Prefer not to say</option>
+        <option value="Man">Man</option>
+        <option value="Woman">Woman</option>
+        <option value="Non-binary">Non-binary</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label for="city">Your city</label>
+      <input id="city" maxlength="100"
+        placeholder="e.g. Pretoria">
+
+      <button type="submit" id="saveButton">Save Profile</button>
+    </form>
+
+    <button class="secondary" id="logoutButton">Log Out</button>
+  </div>
+
+  <div id="message" class="message" role="status"
+    aria-live="polite"></div>
+
+</main>
+
+<section class="features">
+  <div class="feature">
+    <h3>📍 Discover</h3>
+    <p>Explore people and social opportunities around you.</p>
+  </div>
+  <div class="feature">
+    <h3>🥂 Connect</h3>
+    <p>Find people who share your interests and social plans.</p>
+  </div>
+  <div class="feature">
+    <h3>❤️ Meet</h3>
+    <p>Build meaningful connections with mutual interest.</p>
+  </div>
+</section>
+
+<footer>
+  © 2026 Drinks & Connections (D&C). All rights reserved.
+  <p>18+ only. Meet responsibly. Respect everyone's boundaries.</p>
+</footer>
+
+<script>
+"use strict";
+
+/* SUPABASE CONNECTION */
+const SUPABASE_URL =
+  "https://xnmvqjbquibqcjryxpge.supabase.co";
+
+const SUPABASE_KEY =
+  "sb_publishable_7YtYRhqp0walmpQX22pYCg_kdt45GEf";
+
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+
+const el = id => document.getElementById(id);
+
+function showMessage(text, success = false) {
+  el("message").textContent = text;
+  el("message").style.color =
+    success ? "#77d99a" : "#ff9999";
+}
+
+function showLogin() {
+  el("registerPanel").classList.add("hidden");
+  el("loginPanel").classList.remove("hidden");
+  showMessage("");
+}
+
+function showRegister() {
+  el("loginPanel").classList.add("hidden");
+  el("registerPanel").classList.remove("hidden");
+  showMessage("");
+}
+
+el("showLogin").addEventListener("click", showLogin);
+el("showRegister").addEventListener("click", showRegister);
+
+function calculateAge(dateString) {
+  const birth = new Date(dateString + "T00:00:00");
+  const today = new Date();
+
+  let age = today.getFullYear() - birth.getFullYear();
+  const month = today.getMonth() - birth.getMonth();
+
+  if (month < 0 ||
+      (month === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+
+  return age;
+}
+
+/* REGISTRATION */
+el("registerForm").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const name = el("regName").value.trim();
+  const dob = el("regDob").value;
+  const email = el("regEmail").value.trim();
+  const password = el("regPassword").value;
+
+  if (!name || !dob || !email || password.length < 8) {
+    showMessage("Please complete all fields correctly.");
+    return;
+  }
+
+  if (calculateAge(dob) < 18) {
+    showMessage("You must be 18 or older to join D&C.");
+    return;
+  }
+
+  const button = el("registerButton");
+  button.disabled = true;
+  button.textContent = "Creating account...";
+
+  try {
+    const { data, error } = await db.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: name,
+          birth_date: dob
+        }
+      }
+    });
+
+    if (error) throw error;
+
+    if (data.session && data.user) {
+      await loadProfile(data.user);
+      showMessage("Your account has been created!", true);
+    } else {
+      showMessage(
+        "Registration successful! Please check your email " +
+        "and verify your account before logging in.",
+        true
+      );
+    }
+
+  } catch (error) {
+    showMessage(error.message || "Registration failed.");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Create Account";
+  }
+});
+
+/* LOGIN */
+el("loginForm").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const button = el("loginButton");
+  button.disabled = true;
+  button.textContent = "Logging in...";
+
+  try {
+    const { data, error } = await db.auth.signInWithPassword({
+      email: el("loginEmail").value.trim(),
+      password: el("loginPassword").value
+    });
+
+    if (error) throw error;
+
+    await loadProfile(data.user);
+
+  } catch (error) {
+    showMessage(error.message || "Login failed.");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Log In";
+  }
+});
+
+/* LOAD PROFILE */
+async function loadProfile(user) {
+  try {
+    const { data, error } = await db
+      .from("profiles")
+      .select("id,display_name,bio,gender,city")
+      .eq("id", user.id)
+      .single();
+
+    if (error) throw error;
+
+    el("authSection").classList.add("hidden");
+    el("dashboard").classList.remove("hidden");
+
+    el("profileName").textContent =
+      data.display_name || "D&C Member";
+
+    el("profileEmail").textContent = user.email || "";
+    el("bio").value = data.bio || "";
+    el("gender").value = data.gender || "";
+    el("city").value = data.city || "";
+
+    showMessage("You're logged in successfully.", true);
+
+  } catch (error) {
+    showMessage("Profile loading error: " + error.message);
+  }
+}
+
+/* SAVE PROFILE */
+el("profileForm").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  const button = el("saveButton");
+  button.disabled = true;
+
+  try {
+    const { data: { user }, error: userError } =
+      await db.auth.getUser();
+
+    if (userError) throw userError;
+    if (!user) throw new Error("Please log in again.");
+
+    const { error } = await db
+      .from("profiles")
+      .update({
+        bio: el("bio").value.trim(),
+        gender: el("gender").value,
+        city: el("city").value.trim()
+      })
+      .eq("id", user.id);
+
+    if (error) throw error;
+
+    showMessage("Your profile has been saved!", true);
+
+  } catch (error) {
+    showMessage(error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+/* LOGOUT */
+el("logoutButton").addEventListener("click", async () => {
+  try {
+    const { error } = await db.auth.signOut();
+    if (error) throw error;
+
+    el("dashboard").classList.add("hidden");
+    el("authSection").classList.remove("hidden");
+    el("loginForm").reset();
+    showLogin();
+    showMessage("You have logged out.", true);
+
+  } catch (error) {
+    showMessage(error.message);
+  }
+});
+
+/* RESTORE LOGIN SESSION */
+db.auth.getSession().then(({ data, error }) => {
+  if (error) {
+    showMessage(error.message);
+    return;
+  }
+
+  if (data.session) {
+    loadProfile(data.session.user);
+  }
+});
+
+/* HANDLE AUTH CHANGES */
+db.auth.onAuthStateChange((event, session) => {
+  if (event === "SIGNED_OUT") {
+    el("dashboard").classList.add("hidden");
+    el("authSection").classList.remove("hidden");
+  }
+});
+</script>
+
+</body>
+</html>
