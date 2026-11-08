@@ -1,979 +1,1009 @@
-/* ==========================================
-   DRINKS & CONNECTIONS
-   COMPLETE WEBSITE JAVASCRIPT
-========================================== */
+// ==========================================
+// DRINKS & CONNECTIONS
+// Main JavaScript - Supabase
+// ==========================================
 
-/* SUPABASE CONFIGURATION */
+// 1. SUPABASE CONNECTION
+const SUPABASE_URL = "https://xnmvqjbquibqcjryxpge.supabase.co";
 
-const SUPABASE_URL =
-  "https://xnmvqjbquibqcjryxpge.supabase.co";
+const SUPABASE_KEY = "sb_publishable_7YtYRhqp0walmpQX22pYCg_kdt45GEf";
 
-const SUPABASE_KEY =
-  "sb_publishable_7YtYRhqp0walmpQX22pYCg_kdt45GEf";
+const db = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+);
 
 const PHOTO_BUCKET = "profile-photos";
 
-const db = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_KEY
-);
-
-/* APPLICATION STATE */
-
-let currentMember = null;
+let currentUser = null;
+let currentProfile = null;
+let allMembers = [];
+let nearbyMembers = [];
 let activeChatUser = null;
 
-let allMembers = [];
-let memberLikes = [];
-let mutualMembers = [];
 
-/* ==========================================
-   GENERAL FUNCTIONS
-========================================== */
+// ==========================================
+// 2. HELPER FUNCTIONS
+// ==========================================
 
 function el(id) {
-  return document.getElementById(id);
+    return document.getElementById(id);
 }
 
-function showMessage(message, type = "success") {
-  const box = el("message");
+function setMessage(message, type = "info") {
+    const box = el("message");
+    if (!box) return;
 
-  box.textContent = message;
-  box.className = "message show " + type;
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
+    box.textContent = message;
+    box.className = type;
 }
 
-function setPhotoMessage(message, color = "") {
-  const box = el("photoMessage");
-  box.textContent = message;
-
-  if (color) {
-    box.style.color = color;
-  }
+function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+    })[character]);
 }
 
-function calculateAge(dateString) {
-  const birth = new Date(dateString + "T00:00:00");
-  const today = new Date();
-
-  let age = today.getFullYear() - birth.getFullYear();
-
-  if (
-    today.getMonth() < birth.getMonth() ||
-    (
-      today.getMonth() === birth.getMonth() &&
-      today.getDate() < birth.getDate()
-    )
-  ) {
-    age--;
-  }
-
-  return age;
+function getInitials(name) {
+    return String(name || "Member")
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(word => word[0].toUpperCase())
+        .join("");
 }
 
-function setButtonLoading(button, loading, originalText) {
-  button.disabled = loading;
-  button.textContent = loading ? "Please wait..." : originalText;
-}
-
-/* ==========================================
-   REGISTRATION
-========================================== */
-
-el("registerForm").addEventListener("submit", async event => {
-  event.preventDefault();
-
-  const button = event.submitter;
-
-  const name = el("registerName").value.trim();
-  const dob = el("registerDob").value;
-  const email = el("registerEmail").value.trim();
-  const password = el("registerPassword").value;
-
-  if (!name || !dob || !email || !password) {
-    showMessage("Please complete all fields.", "error");
-    return;
-  }
-
-  if (!el("ageConfirm").checked) {
-    showMessage("Please confirm that you are 18 or older.", "error");
-    return;
-  }
-
-  if (new Date(dob) > new Date()) {
-    showMessage("Please enter a valid date of birth.", "error");
-    return;
-  }
-
-  if (calculateAge(dob) < 18) {
-    showMessage("You must be at least 18 years old.", "error");
-    return;
-  }
-
-  if (password.length < 8) {
-    showMessage("Password must be at least 8 characters.", "error");
-    return;
-  }
-
-  setButtonLoading(button, true, "Create Account");
-
-  try {
-    const { data, error } = await db.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          display_name: name,
-          birth_date: dob
-        }
-      }
-    });
-
-    if (error) throw error;
-
-    el("registerForm").reset();
-
-    if (data.session && data.user) {
-      await loadDashboard(data.user);
-      showMessage("Welcome to Drinks & Connections! 🥂");
-    } else {
-      showMessage(
-        "Your account has been created. Please check your email to verify your account."
-      );
+function showDashboard(show) {
+    if (el("authSection")) {
+        el("authSection").style.display = show ? "none" : "block";
     }
 
-  } catch (error) {
-    showMessage("Registration failed: " + error.message, "error");
-  } finally {
-    setButtonLoading(button, false, "Create Account");
-  }
-});
-
-/* ==========================================
-   LOGIN
-========================================== */
-
-el("loginForm").addEventListener("submit", async event => {
-  event.preventDefault();
-
-  const button = event.submitter;
-
-  const email = el("loginEmail").value.trim();
-  const password = el("loginPassword").value;
-
-  setButtonLoading(button, true, "Log In");
-
-  try {
-    const { data, error } = await db.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    if (error) throw error;
-
-    el("loginForm").reset();
-
-    await loadDashboard(data.user);
-
-    showMessage("Welcome back! 🥂");
-
-  } catch (error) {
-    showMessage("Login failed: " + error.message, "error");
-  } finally {
-    setButtonLoading(button, false, "Log In");
-  }
-});
-
-/* ==========================================
-   LOAD DASHBOARD
-========================================== */
-
-async function loadDashboard(user) {
-  currentMember = user;
-
-  el("authSection").classList.add("hidden");
-  el("dashboard").classList.remove("hidden");
-
-  el("profileEmail").textContent = user.email || "";
-
-  await loadProfile();
-  await loadSocialFeatures();
+    if (el("dashboard")) {
+        el("dashboard").style.display = show ? "block" : "none";
+    }
 }
 
-/* ==========================================
-   LOAD PROFILE
-========================================== */
-
-async function loadProfile() {
-  if (!currentMember) return;
-
-  const { data, error } = await db
-    .from("profiles")
-    .select("id,display_name,bio,gender,city,avatar_url,avatar_path")
-    .eq("id", currentMember.id)
-    .maybeSingle();
-
-  if (error) {
-    showMessage("Profile error: " + error.message, "error");
-    return;
-  }
-
-  if (!data) {
-    const metadata = currentMember.user_metadata || {};
-
-    el("displayName").value = metadata.display_name || "";
-
-    showMessage(
-      "Your profile record is missing. Check your Supabase profile creation trigger.",
-      "error"
-    );
-
-    return;
-  }
-
-  el("displayName").value = data.display_name || "";
-  el("bio").value = data.bio || "";
-  el("gender").value = data.gender || "";
-  el("city").value = data.city || "";
-
-  if (data.avatar_url) {
-    el("profilePhotoPreview").src = data.avatar_url;
-    el("profilePhotoPreview").classList.remove("hidden");
-    el("profilePhotoPlaceholder").classList.add("hidden");
-  } else {
-    el("profilePhotoPreview").classList.add("hidden");
-    el("profilePhotoPlaceholder").classList.remove("hidden");
-  }
+function setGpsStatus(message) {
+    if (el("gpsStatus")) {
+        el("gpsStatus").textContent = message;
+    }
 }
 
-/* ==========================================
-   SAVE PROFILE
-========================================== */
+function showGpsScanner(show) {
+    if (el("gpsScanner")) {
+        el("gpsScanner").style.display = show ? "block" : "none";
+    }
+}
 
-el("profileForm").addEventListener("submit", async event => {
-  event.preventDefault();
 
-  if (!currentMember) return;
+// ==========================================
+// 3. AUTHENTICATION
+// ==========================================
 
-  const button = event.submitter;
+async function registerUser(event) {
+    event.preventDefault();
 
-  setButtonLoading(button, true, "Save Profile");
+    const name = el("registerName")?.value.trim();
+    const dob = el("registerDob")?.value;
+    const email = el("registerEmail")?.value.trim();
+    const password = el("registerPassword")?.value;
+    const ageConfirmed = el("ageConfirm")?.checked;
 
-  try {
+    if (!name || !dob || !email || !password) {
+        return setMessage("Please complete all registration fields.", "error");
+    }
+
+    if (!ageConfirmed) {
+        return setMessage("You must confirm that you are 18 or older.", "error");
+    }
+
+    const birthDate = new Date(dob);
+    const today = new Date();
+
+    let age = today.getFullYear() - birthDate.getFullYear();
+
+    const birthdayNotReached =
+        today.getMonth() < birthDate.getMonth() ||
+        (
+            today.getMonth() === birthDate.getMonth() &&
+            today.getDate() < birthDate.getDate()
+        );
+
+    if (birthdayNotReached) age--;
+
+    if (age < 18) {
+        return setMessage("You must be at least 18 to join.", "error");
+    }
+
+    if (password.length < 6) {
+        return setMessage("Your password must be at least 6 characters.", "error");
+    }
+
+    setMessage("Creating your account...");
+
+    try {
+        const { data, error } = await db.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    display_name: name,
+                    date_of_birth: dob
+                }
+            }
+        });
+
+        if (error) throw error;
+
+        if (data.user) {
+            const { error: profileError } = await db
+                .from("profiles")
+                .upsert({
+                    id: data.user.id,
+                    display_name: name,
+                    bio: "",
+                    city: "",
+                    gender: "",
+                    location_sharing_enabled: false
+                });
+
+            if (profileError) {
+                console.error(profileError);
+                return setMessage(
+                    "Your account was created, but your profile needs attention: " +
+                    profileError.message,
+                    "error"
+                );
+            }
+        }
+
+        if (!data.session) {
+            setMessage(
+                "Account created! Please check your email to confirm your account before logging in.",
+                "success"
+            );
+        } else {
+            setMessage("Welcome to Drinks & Connections!", "success");
+        }
+
+    } catch (error) {
+        console.error(error);
+        setMessage(error.message, "error");
+    }
+}
+
+
+async function loginUser(event) {
+    event.preventDefault();
+
+    const email = el("loginEmail")?.value.trim();
+    const password = el("loginPassword")?.value;
+
+    if (!email || !password) {
+        return setMessage("Enter your email and password.", "error");
+    }
+
+    setMessage("Logging in...");
+
+    try {
+        const { error } = await db.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error) throw error;
+
+        await loadDashboard();
+
+    } catch (error) {
+        console.error(error);
+        setMessage(error.message, "error");
+    }
+}
+
+
+async function logoutUser() {
+    const { error } = await db.auth.signOut();
+
+    if (error) {
+        return setMessage(error.message, "error");
+    }
+
+    currentUser = null;
+    currentProfile = null;
+    allMembers = [];
+    nearbyMembers = [];
+    activeChatUser = null;
+
+    showDashboard(false);
+    setMessage("You have logged out.");
+}
+
+
+// ==========================================
+// 4. LOAD USER DASHBOARD
+// ==========================================
+
+async function loadDashboard() {
+    const { data: userData, error: userError } =
+        await db.auth.getUser();
+
+    if (userError || !userData.user) {
+        currentUser = null;
+        showDashboard(false);
+        return;
+    }
+
+    currentUser = userData.user;
+
+    const { data: profile, error } = await db
+        .from("profiles")
+        .select("*")
+        .eq("id", currentUser.id)
+        .maybeSingle();
+
+    if (error) {
+        console.error(error);
+        setMessage("Could not load your profile: " + error.message, "error");
+        return;
+    }
+
+    currentProfile = profile;
+
+    if (!currentProfile) {
+        const { data: newProfile, error: createError } = await db
+            .from("profiles")
+            .insert({
+                id: currentUser.id,
+                display_name:
+                    currentUser.user_metadata?.display_name || "New Member",
+                location_sharing_enabled: false
+            })
+            .select()
+            .single();
+
+        if (createError) {
+            console.error(createError);
+            setMessage(createError.message, "error");
+            return;
+        }
+
+        currentProfile = newProfile;
+    }
+
+    showDashboard(true);
+
+    if (el("profileEmail")) {
+        el("profileEmail").textContent = currentUser.email;
+    }
+
+    loadProfileForm();
+    await loadMembers();
+    await loadConnections();
+
+    setMessage("Welcome back!", "success");
+}
+
+
+// ==========================================
+// 5. PROFILE
+// ==========================================
+
+function loadProfileForm() {
+    if (!currentProfile) return;
+
+    if (el("displayName")) {
+        el("displayName").value =
+            currentProfile.display_name || "";
+    }
+
+    if (el("bio")) {
+        el("bio").value = currentProfile.bio || "";
+    }
+
+    if (el("gender")) {
+        el("gender").value = currentProfile.gender || "";
+    }
+
+    if (el("city")) {
+        el("city").value = currentProfile.city || "";
+    }
+
+    const photo = currentProfile.avatar_url;
+
+    if (photo) {
+        if (el("profilePhotoPreview")) {
+            el("profilePhotoPreview").src = photo;
+            el("profilePhotoPreview").style.display = "block";
+        }
+
+        if (el("profilePhotoPlaceholder")) {
+            el("profilePhotoPlaceholder").style.display = "none";
+        }
+    }
+}
+
+
+async function saveProfile(event) {
+    event.preventDefault();
+
+    if (!currentUser) return;
+
     const updates = {
-      display_name: el("displayName").value.trim(),
-      bio: el("bio").value.trim(),
-      gender: el("gender").value,
-      city: el("city").value.trim()
+        id: currentUser.id,
+        display_name: el("displayName")?.value.trim() || "",
+        bio: el("bio")?.value.trim() || "",
+        gender: el("gender")?.value || "",
+        city: el("city")?.value.trim() || ""
     };
 
-    const { error } = await db
-      .from("profiles")
-      .update(updates)
-      .eq("id", currentMember.id);
+    try {
+        const { data, error } = await db
+            .from("profiles")
+            .upsert(updates)
+            .select()
+            .single();
 
-    if (error) throw error;
+        if (error) throw error;
 
-    showMessage("Your profile has been saved successfully! 🥂");
+        currentProfile = {
+            ...currentProfile,
+            ...data
+        };
 
-    await loadMembers();
+        setMessage("Your profile has been updated!", "success");
 
-  } catch (error) {
-    showMessage("Could not save profile: " + error.message, "error");
-  } finally {
-    setButtonLoading(button, false, "Save Profile");
-  }
-});
+    } catch (error) {
+        console.error(error);
+        setMessage("Profile update failed: " + error.message, "error");
+    }
+}
 
-/* ==========================================
-   PROFILE PHOTO PREVIEW
-========================================== */
 
-el("profilePhotoInput").addEventListener("change", event => {
-  const file = event.target.files[0];
+// ==========================================
+// 6. PROFILE PHOTO UPLOAD
+// ==========================================
 
-  if (!file) return;
-
-  const allowedTypes = [
-    "image/jpeg",
-    "image/png",
-    "image/webp"
-  ];
-
-  if (!allowedTypes.includes(file.type)) {
-    setPhotoMessage("Please select a JPG, PNG or WEBP image.", "#ff7777");
-    event.target.value = "";
-    return;
-  }
-
-  if (file.size > 5 * 1024 * 1024) {
-    setPhotoMessage("Image must be smaller than 5 MB.", "#ff7777");
-    event.target.value = "";
-    return;
-  }
-
-  const preview = el("profilePhotoPreview");
-
-  if (preview.dataset.previewUrl) {
-    URL.revokeObjectURL(preview.dataset.previewUrl);
-  }
-
-  const previewUrl = URL.createObjectURL(file);
-
-  preview.dataset.previewUrl = previewUrl;
-  preview.src = previewUrl;
-
-  preview.classList.remove("hidden");
-  el("profilePhotoPlaceholder").classList.add("hidden");
-
-  setPhotoMessage(
-    "Image ready. Click Upload Profile Picture.",
-    "#d9ad62"
-  );
-});
-
-/* ==========================================
-   UPLOAD PROFILE PHOTO
-========================================== */
-
-el("uploadPhotoButton").addEventListener("click", async () => {
-  if (!currentMember) {
-    setPhotoMessage("Please log in first.", "#ff7777");
-    return;
-  }
-
-  const button = el("uploadPhotoButton");
-  const file = el("profilePhotoInput").files[0];
-
-  if (!file) {
-    setPhotoMessage("Please choose a picture first.", "#ff7777");
-    return;
-  }
-
-  const extensions = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp"
-  };
-
-  if (!extensions[file.type] || file.size > 5 * 1024 * 1024) {
-    setPhotoMessage("Invalid image or image exceeds 5 MB.", "#ff7777");
-    return;
-  }
-
-  button.disabled = true;
-  button.textContent = "Uploading...";
-
-  let newPath = null;
-  let profileSaved = false;
-
-  try {
-    const { data: oldProfile, error: readError } = await db
-      .from("profiles")
-      .select("avatar_path")
-      .eq("id", currentMember.id)
-      .single();
-
-    if (readError) throw readError;
-
-    newPath =
-      currentMember.id + "/" +
-      Date.now() + "." + extensions[file.type];
-
-    const { error: uploadError } = await db.storage
-      .from(PHOTO_BUCKET)
-      .upload(newPath, file, {
-        cacheControl: "3600",
-        contentType: file.type,
-        upsert: false
-      });
-
-    if (uploadError) throw uploadError;
-
-    const { data: publicData } = db.storage
-      .from(PHOTO_BUCKET)
-      .getPublicUrl(newPath);
-
-    const imageUrl = publicData.publicUrl;
-
-    const { error: updateError } = await db
-      .from("profiles")
-      .update({
-        avatar_url: imageUrl,
-        avatar_path: newPath
-      })
-      .eq("id", currentMember.id);
-
-    if (updateError) throw updateError;
-
-    profileSaved = true;
-
-    const preview = el("profilePhotoPreview");
-
-    preview.src = imageUrl + "?v=" + Date.now();
-    preview.classList.remove("hidden");
-
-    el("profilePhotoPlaceholder").classList.add("hidden");
-
-    if (
-      oldProfile.avatar_path &&
-      oldProfile.avatar_path !== newPath
-    ) {
-      const { error: deleteError } = await db.storage
-        .from(PHOTO_BUCKET)
-        .remove([oldProfile.avatar_path]);
-
-      if (deleteError) {
-        console.warn("Old photo cleanup failed:", deleteError.message);
-      }
+async function uploadProfilePhoto() {
+    if (!currentUser) {
+        return setMessage("Please log in first.", "error");
     }
 
-    el("profilePhotoInput").value = "";
+    const file = el("profilePhotoInput")?.files?.[0];
 
-    setPhotoMessage(
-      "Your profile picture has been uploaded successfully! 🥂",
-      "#70d49a"
-    );
-
-    await loadMembers();
-
-  } catch (error) {
-
-    if (newPath && !profileSaved) {
-      await db.storage
-        .from(PHOTO_BUCKET)
-        .remove([newPath]);
+    if (!file) {
+        return setMessage("Please choose a photo first.", "error");
     }
 
-    setPhotoMessage("Upload failed: " + error.message, "#ff7777");
+    if (!file.type.startsWith("image/")) {
+        return setMessage("Please select an image file.", "error");
+    }
 
-  } finally {
-    button.disabled = false;
-    button.textContent = "Upload Profile Picture 📸";
-  }
-});
+    if (file.size > 5 * 1024 * 1024) {
+        return setMessage("Your photo must be smaller than 5 MB.", "error");
+    }
 
-/* ==========================================
-   LOAD SOCIAL FEATURES
-========================================== */
+    const extension = file.name.split(".").pop().toLowerCase();
+    const filePath = `${currentUser.id}/${Date.now()}.${extension}`;
 
-async function loadSocialFeatures() {
-  await loadLikes();
-  await loadMutualConnections();
-  await loadMembers();
+    try {
+        if (el("photoMessage")) {
+            el("photoMessage").textContent = "Uploading photo...";
+        }
+
+        const { error: uploadError } = await db.storage
+            .from(PHOTO_BUCKET)
+            .upload(filePath, file, {
+                upsert: true,
+                contentType: file.type
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = db.storage
+            .from(PHOTO_BUCKET)
+            .getPublicUrl(filePath);
+
+        const photoURL = urlData.publicUrl;
+
+        const { error: updateError } = await db
+            .from("profiles")
+            .update({
+                avatar_url: photoURL,
+                avatar_path: filePath
+            })
+            .eq("id", currentUser.id);
+
+        if (updateError) throw updateError;
+
+        currentProfile.avatar_url = photoURL;
+        currentProfile.avatar_path = filePath;
+
+        if (el("profilePhotoPreview")) {
+            el("profilePhotoPreview").src = photoURL;
+            el("profilePhotoPreview").style.display = "block";
+        }
+
+        if (el("profilePhotoPlaceholder")) {
+            el("profilePhotoPlaceholder").style.display = "none";
+        }
+
+        if (el("photoMessage")) {
+            el("photoMessage").textContent = "Photo uploaded successfully!";
+        }
+
+        await loadMembers();
+
+    } catch (error) {
+        console.error(error);
+
+        if (el("photoMessage")) {
+            el("photoMessage").textContent = error.message;
+        }
+    }
 }
 
-/* ==========================================
-   LOAD MEMBERS
-========================================== */
 
-async function loadMembers() {
-  if (!currentMember) return;
+// ==========================================
+// 7. MEMBER CARDS
+// ==========================================
 
-  const results = el("memberResults");
-
-  results.textContent = "Loading members...";
-
-  const { data, error } = await db
-    .from("profiles")
-    .select("id,display_name,bio,gender,city,avatar_url")
-    .neq("id", currentMember.id)
-    .limit(100);
-
-  if (error) {
-    results.textContent = "Could not load members: " + error.message;
-    return;
-  }
-
-  allMembers = data || [];
-
-  searchMembers();
-}
-
-/* ==========================================
-   MEMBER SEARCH
-========================================== */
-
-function searchMembers() {
-  const query = el("memberSearch").value.toLowerCase().trim();
-  const gender = el("genderFilter").value;
-
-  const filtered = allMembers.filter(member => {
-
-    const searchable = [
-      member.display_name,
-      member.city,
-      member.bio
-    ].join(" ").toLowerCase();
-
-    return (
-      searchable.includes(query) &&
-      (!gender || member.gender === gender)
-    );
-  });
-
-  displayMembers(filtered);
-}
-
-el("searchMembers").addEventListener("click", searchMembers);
-el("memberSearch").addEventListener("input", searchMembers);
-el("genderFilter").addEventListener("change", searchMembers);
-
-/* ==========================================
-   DISPLAY MEMBER CARDS
-========================================== */
-
-function displayMembers(members) {
-  const results = el("memberResults");
-
-  results.innerHTML = "";
-
-  if (!members.length) {
-    results.textContent = "No members found.";
-    return;
-  }
-
-  members.forEach(member => {
-
+function createMemberCard(member, showDistance = false) {
     const card = document.createElement("div");
     card.className = "member-card";
 
-    const avatar = document.createElement("div");
-    avatar.className = "member-avatar";
+    const name = escapeHTML(member.display_name || "Member");
+    const bio = escapeHTML(member.bio || "No bio available yet.");
+    const city = escapeHTML(member.city || "Location not provided");
+    const gender = escapeHTML(member.gender || "");
+    const photo = member.avatar_url;
 
-    if (member.avatar_url) {
-      const image = document.createElement("img");
+    const avatar = photo
+        ? `<img src="${escapeHTML(photo)}" alt="${name}" class="member-avatar">`
+        : `<div class="member-avatar-placeholder">${escapeHTML(getInitials(member.display_name))}</div>`;
 
-      image.src = member.avatar_url;
-      image.alt = "Member profile picture";
-      image.loading = "lazy";
+    const distance = showDistance && Number.isFinite(Number(member.distance_km))
+        ? `<p class="member-distance">📍 Approximately ${Number(member.distance_km).toFixed(1)} km away</p>`
+        : "";
 
-      avatar.appendChild(image);
+    card.innerHTML = `
+        <div class="member-photo">${avatar}</div>
+        <div class="member-details">
+            <h3>${name}</h3>
+            <p>${city}</p>
+            <p>${gender}</p>
+            <p>${bio}</p>
+            ${distance}
+            <button type="button" class="like-member">❤️ Connect</button>
+            <button type="button" class="message-member">💬 Message</button>
+        </div>
+    `;
 
-    } else {
-      avatar.textContent =
-        (member.display_name || "D").charAt(0).toUpperCase();
-    }
-
-    const heading = document.createElement("h3");
-    heading.textContent = member.display_name || "D&C Member";
-
-    const city = document.createElement("p");
-    city.textContent = member.city || "Location not specified";
-
-    const gender = document.createElement("p");
-    gender.textContent = member.gender || "Not specified";
-
-    const bio = document.createElement("p");
-    bio.textContent = member.bio || "No biography yet.";
-
-    card.append(avatar, heading, city, gender, bio);
-
-    if (mutualMembers.includes(member.id)) {
-
-      const button = document.createElement("button");
-      button.textContent = "Message 💬";
-
-      button.addEventListener("click", () => {
-        openConversation(member.id);
-      });
-
-      card.appendChild(button);
-
-    } else if (memberLikes.includes(member.id)) {
-
-      const button = document.createElement("button");
-
-      button.textContent = "Like Sent ❤️";
-      button.disabled = true;
-
-      card.appendChild(button);
-
-    } else {
-
-      const button = document.createElement("button");
-
-      button.textContent = "Like ❤️";
-
-      button.addEventListener("click", () => {
+    card.querySelector(".like-member").addEventListener("click", () => {
         likeMember(member.id);
-      });
-
-      card.appendChild(button);
-    }
-
-    results.appendChild(card);
-  });
-}
-
-/* ==========================================
-   LOAD OUTGOING LIKES
-========================================== */
-
-async function loadLikes() {
-  if (!currentMember) return;
-
-  const { data, error } = await db
-    .from("connections")
-    .select("liked_user_id")
-    .eq("user_id", currentMember.id);
-
-  if (error) {
-    showMessage("Could not load likes: " + error.message, "error");
-    return;
-  }
-
-  memberLikes = (data || []).map(item => item.liked_user_id);
-}
-
-/* ==========================================
-   LIKE A MEMBER
-========================================== */
-
-async function likeMember(memberId) {
-  if (!currentMember || memberId === currentMember.id) return;
-
-  if (memberLikes.includes(memberId)) {
-    showMessage("You have already liked this member.", "error");
-    return;
-  }
-
-  try {
-    const { error } = await db
-      .from("connections")
-      .insert({
-        user_id: currentMember.id,
-        liked_user_id: memberId
-      });
-
-    if (error) throw error;
-
-    showMessage("Your like has been sent! ❤️");
-
-    await loadLikes();
-    await loadMutualConnections();
-
-    searchMembers();
-
-  } catch (error) {
-    showMessage("Could not send like: " + error.message, "error");
-  }
-}
-
-/* ==========================================
-   LOAD MUTUAL CONNECTIONS
-========================================== */
-
-async function loadMutualConnections() {
-  if (!currentMember) return;
-
-  const [outgoingResult, incomingResult] = await Promise.all([
-
-    db.from("connections")
-      .select("liked_user_id")
-      .eq("user_id", currentMember.id),
-
-    db.from("connections")
-      .select("user_id")
-      .eq("liked_user_id", currentMember.id)
-
-  ]);
-
-  if (outgoingResult.error || incomingResult.error) {
-    console.error(
-      outgoingResult.error || incomingResult.error
-    );
-
-    return;
-  }
-
-  const outgoing = (outgoingResult.data || [])
-    .map(item => item.liked_user_id);
-
-  const incoming = (incomingResult.data || [])
-    .map(item => item.user_id);
-
-  mutualMembers = outgoing.filter(id => incoming.includes(id));
-
-  const contacts = el("chatContacts");
-  contacts.innerHTML = "";
-
-  if (!mutualMembers.length) {
-    contacts.textContent =
-      "No mutual connections yet. Keep discovering! ❤️";
-
-    return;
-  }
-
-  const { data, error } = await db
-    .from("profiles")
-    .select("id,display_name,avatar_url")
-    .in("id", mutualMembers);
-
-  if (error) {
-    contacts.textContent =
-      "Could not load connections: " + error.message;
-
-    return;
-  }
-
-  (data || []).forEach(member => {
-
-    const item = document.createElement("div");
-    item.className = "contact-item";
-
-    const name = document.createElement("span");
-
-    name.textContent =
-      "❤️ " + (member.display_name || "D&C Member");
-
-    const button = document.createElement("button");
-
-    button.textContent = "Chat 💬";
-
-    button.addEventListener("click", () => {
-      openConversation(member.id);
     });
 
-    item.append(name, button);
-    contacts.appendChild(item);
-  });
+    card.querySelector(".message-member").addEventListener("click", () => {
+        openConversation(member);
+    });
+
+    return card;
 }
 
-/* ==========================================
-   OPEN CHAT
-========================================== */
 
-async function openConversation(memberId) {
-  if (!mutualMembers.includes(memberId)) {
-    showMessage(
-      "You need a mutual connection before messaging.",
-      "error"
-    );
+// ==========================================
+// 8. DISCOVER MEMBERS
+// ==========================================
 
-    return;
-  }
+async function loadMembers() {
+    if (!currentUser) return;
 
-  activeChatUser = memberId;
+    try {
+        const { data, error } = await db
+            .from("profiles")
+            .select("id, display_name, bio, gender, city, avatar_url")
+            .neq("id", currentUser.id)
+            .order("display_name");
 
-  const member = allMembers.find(item => item.id === memberId);
+        if (error) throw error;
 
-  el("chatTitle").textContent =
-    "Chat with " + (member?.display_name || "D&C Member");
+        allMembers = data || [];
+        displayMembers(allMembers);
 
-  el("chatWindow").classList.remove("hidden");
-
-  await loadMessages();
-
-  el("chatWindow").scrollIntoView({
-    behavior: "smooth"
-  });
+    } catch (error) {
+        console.error(error);
+        setMessage("Could not load members: " + error.message, "error");
+    }
 }
 
-/* ==========================================
-   LOAD CHAT MESSAGES
-========================================== */
 
-async function loadMessages() {
-  if (!currentMember || !activeChatUser) return;
+function displayMembers(members) {
+    const container = el("memberResults");
+    if (!container) return;
 
-  if (!mutualMembers.includes(activeChatUser)) {
-    el("chatMessages").textContent =
-      "This connection is no longer available.";
+    container.innerHTML = "";
 
-    return;
-  }
+    if (!members.length) {
+        container.textContent = "No members found.";
+        return;
+    }
 
-  const messagesBox = el("chatMessages");
-
-  messagesBox.textContent = "Loading messages...";
-
-  const myId = currentMember.id;
-  const otherId = activeChatUser;
-
-  const filter =
-    "and(sender_id.eq." + myId +
-    ",recipient_id.eq." + otherId + ")," +
-    "and(sender_id.eq." + otherId +
-    ",recipient_id.eq." + myId + ")";
-
-  const { data, error } = await db
-    .from("messages")
-    .select("id,sender_id,recipient_id,content,created_at")
-    .or(filter)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    messagesBox.textContent =
-      "Could not load messages: " + error.message;
-
-    return;
-  }
-
-  messagesBox.innerHTML = "";
-
-  if (!data || !data.length) {
-    messagesBox.textContent =
-      "Start your conversation! 🥂";
-
-    return;
-  }
-
-  data.forEach(message => {
-
-    const bubble = document.createElement("div");
-
-    bubble.className =
-      "chat-bubble " +
-      (
-        message.sender_id === myId
-          ? "mine"
-          : "theirs"
-      );
-
-    const content = document.createElement("span");
-
-    content.textContent = message.content;
-
-    const time = document.createElement("small");
-
-    time.textContent =
-      new Date(message.created_at).toLocaleString();
-
-    bubble.append(content, time);
-
-    messagesBox.appendChild(bubble);
-  });
-
-  messagesBox.scrollTop = messagesBox.scrollHeight;
+    members.forEach(member => {
+        container.appendChild(createMemberCard(member));
+    });
 }
 
-/* ==========================================
-   SEND MESSAGE
-========================================== */
 
-el("messageForm").addEventListener("submit", async event => {
-  event.preventDefault();
+async function searchMembers() {
+    if (!currentUser) return;
 
-  if (!currentMember || !activeChatUser) return;
+    const search = el("memberSearch")?.value.trim().toLowerCase() || "";
+    const gender = el("genderFilter")?.value || "";
 
-  if (!mutualMembers.includes(activeChatUser)) {
-    showMessage(
-      "You can only message mutual connections.",
-      "error"
-    );
+    const filtered = allMembers.filter(member => {
+        const text = [
+            member.display_name,
+            member.city,
+            member.bio
+        ].join(" ").toLowerCase();
 
-    return;
-  }
+        const matchesSearch = !search || text.includes(search);
+        const matchesGender = !gender || member.gender === gender;
 
-  const input = el("messageInput");
-  const button = event.submitter;
+        return matchesSearch && matchesGender;
+    });
 
-  const content = input.value.trim();
+    displayMembers(filtered);
+}
 
-  if (!content) return;
 
-  button.disabled = true;
-  button.textContent = "Sending...";
+// ==========================================
+// 9. CONNECTIONS / LIKES
+// ==========================================
 
-  try {
-    const { error } = await db
-      .from("messages")
-      .insert({
-        sender_id: currentMember.id,
-        recipient_id: activeChatUser,
-        content: content
-      });
+async function likeMember(memberId) {
+    if (!currentUser || memberId === currentUser.id) return;
 
-    if (error) throw error;
+    try {
+        const { error } = await db
+            .from("connections")
+            .upsert(
+                {
+                    user_id: currentUser.id,
+                    liked_user_id: memberId
+                },
+                {
+                    onConflict: "user_id,liked_user_id",
+                    ignoreDuplicates: true
+                }
+            );
 
-    input.value = "";
+        if (error) throw error;
+
+        const { data: reverseLike, error: checkError } = await db
+            .from("connections")
+            .select("id")
+            .eq("user_id", memberId)
+            .eq("liked_user_id", currentUser.id)
+            .maybeSingle();
+
+        if (checkError) throw checkError;
+
+        if (reverseLike) {
+            setMessage("It's a match! You are now connected ❤️", "success");
+            await loadConnections();
+        } else {
+            setMessage("Connection request sent!", "success");
+        }
+
+    } catch (error) {
+        console.error(error);
+        setMessage("Could not send connection: " + error.message, "error");
+    }
+}
+
+
+async function loadConnections() {
+    if (!currentUser) return;
+
+    try {
+        const { data: outgoing, error: outError } = await db
+            .from("connections")
+            .select("liked_user_id")
+            .eq("user_id", currentUser.id);
+
+        if (outError) throw outError;
+
+        const { data: incoming, error: inError } = await db
+            .from("connections")
+            .select("user_id")
+            .eq("liked_user_id", currentUser.id);
+
+        if (inError) throw inError;
+
+        const outgoingIds = new Set(
+            (outgoing || []).map(item => item.liked_user_id)
+        );
+
+        const mutualIds = (incoming || [])
+            .map(item => item.user_id)
+            .filter(id => outgoingIds.has(id));
+
+        const container = el("connectionResults");
+        const contacts = el("chatContacts");
+
+        if (container) container.innerHTML = "";
+        if (contacts) contacts.innerHTML = "";
+
+        if (!mutualIds.length) {
+            if (container) container.textContent = "No mutual connections yet.";
+            if (contacts) contacts.textContent = "Your connections will appear here.";
+            return;
+        }
+
+        const { data: profiles, error: profileError } = await db
+            .from("profiles")
+            .select("id, display_name, bio, gender, city, avatar_url")
+            .in("id", mutualIds);
+
+        if (profileError) throw profileError;
+
+        profiles.forEach(member => {
+            if (container) {
+                container.appendChild(createMemberCard(member));
+            }
+
+            if (contacts) {
+                const contact = document.createElement("button");
+                contact.type = "button";
+                contact.className = "chat-contact";
+                contact.textContent = member.display_name || "Member";
+                contact.addEventListener("click", () => openConversation(member));
+                contacts.appendChild(contact);
+            }
+        });
+
+    } catch (error) {
+        console.error(error);
+        setMessage("Could not load connections: " + error.message, "error");
+    }
+}
+
+
+// ==========================================
+// 10. PRIVATE MESSAGING
+// ==========================================
+
+async function openConversation(member) {
+    if (!currentUser || !member?.id) return;
+
+    activeChatUser = member;
+
+    if (el("chatWindow")) {
+        el("chatWindow").style.display = "block";
+    }
+
+    if (el("chatTitle")) {
+        el("chatTitle").textContent =
+            "Chat with " + (member.display_name || "Member");
+    }
 
     await loadMessages();
-
-  } catch (error) {
-    showMessage("Message failed: " + error.message, "error");
-  } finally {
-    button.disabled = false;
-    button.textContent = "Send";
-  }
-});
-
-/* REFRESH CHAT */
-
-el("refreshChat").addEventListener("click", loadMessages);
-
-/* CLOSE CHAT */
-
-el("closeChat").addEventListener("click", () => {
-
-  activeChatUser = null;
-
-  el("chatWindow").classList.add("hidden");
-
-  el("chatMessages").innerHTML = "";
-});
-
-/* ==========================================
-   LOGOUT
-========================================== */
-
-el("logoutButton").addEventListener("click", async () => {
-
-  const button = el("logoutButton");
-
-  button.disabled = true;
-
-  try {
-    const { error } = await db.auth.signOut();
-
-    if (error) throw error;
-
-    currentMember = null;
-    activeChatUser = null;
-
-    allMembers = [];
-    memberLikes = [];
-    mutualMembers = [];
-
-    el("dashboard").classList.add("hidden");
-    el("authSection").classList.remove("hidden");
-    el("chatWindow").classList.add("hidden");
-
-    el("memberResults").innerHTML = "";
-    el("chatContacts").innerHTML = "";
-
-    showMessage("You have logged out successfully.");
-
-  } catch (error) {
-    showMessage("Logout failed: " + error.message, "error");
-  } finally {
-    button.disabled = false;
-  }
-});
-
-/* ==========================================
-   RESTORE LOGIN SESSION
-========================================== */
-
-async function restoreSession() {
-
-  const { data, error } = await db.auth.getSession();
-
-  if (error) {
-    showMessage("Session error: " + error.message, "error");
-    return;
-  }
-
-  if (data.session && data.session.user) {
-    await loadDashboard(data.session.user);
-  }
 }
 
-/* START APPLICATION */
 
-restoreSession();
+async function loadMessages() {
+    if (!currentUser || !activeChatUser) return;
+
+    try {
+        const { data, error } = await db
+            .from("messages")
+            .select("*")
+            .or(
+                `and(sender_id.eq.${currentUser.id},recipient_id.eq.${activeChatUser.id}),and(sender_id.eq.${activeChatUser.id},recipient_id.eq.${currentUser.id})`
+            )
+            .order("created_at", { ascending: true });
+
+        if (error) throw error;
+
+        const container = el("chatMessages");
+        if (!container) return;
+
+        container.innerHTML = "";
+
+        (data || []).forEach(message => {
+            const bubble = document.createElement("div");
+
+            bubble.className =
+                message.sender_id === currentUser.id
+                    ? "message sent"
+                    : "message received";
+
+            bubble.textContent = message.content;
+            container.appendChild(bubble);
+        });
+
+        container.scrollTop = container.scrollHeight;
+
+    } catch (error) {
+        console.error(error);
+        setMessage("Could not load messages: " + error.message, "error");
+    }
+}
+
+
+async function sendMessage(event) {
+    event.preventDefault();
+
+    if (!currentUser || !activeChatUser) {
+        return setMessage("Open a conversation first.", "error");
+    }
+
+    const content = el("messageInput")?.value.trim();
+
+    if (!content) return;
+
+    try {
+        const { error } = await db
+            .from("messages")
+            .insert({
+                sender_id: currentUser.id,
+                recipient_id: activeChatUser.id,
+                content
+            });
+
+        if (error) throw error;
+
+        el("messageInput").value = "";
+
+        await loadMessages();
+
+    } catch (error) {
+        console.error(error);
+        setMessage("Message could not be sent: " + error.message, "error");
+    }
+}
+
+
+// ==========================================
+// 11. GPS - FIND PEOPLE NEAR ME
+// ==========================================
+
+function getUserLocation() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error("Your browser does not support GPS."));
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            position => resolve(position),
+            error => reject(error),
+            {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 60000
+            }
+        );
+    });
+}
+
+
+async function findNearbyMembers() {
+    if (!currentUser) {
+        return setGpsStatus("Please log in first.");
+    }
+
+    if (!navigator.geolocation) {
+        return setGpsStatus("GPS is not supported by this browser.");
+    }
+
+    const button = el("findNearbyButton");
+
+    if (button) button.disabled = true;
+
+    showGpsScanner(true);
+    setGpsStatus("Searching for your location...");
+
+    try {
+        // Only obtains location after the member clicks the button.
+        const position = await getUserLocation();
+
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+
+        setGpsStatus("Location found. Finding nearby members...");
+
+        // Save location only to the signed-in member's own profile.
+        const { error: updateError } = await db
+            .from("profiles")
+            .update({
+                latitude,
+                longitude,
+                location_sharing_enabled: true,
+                location_updated_at: new Date().toISOString()
+            })
+            .eq("id", currentUser.id);
+
+        if (updateError) throw updateError;
+
+        const maxDistance = Number(el("distanceFilter")?.value || 25);
+
+        const { data, error } = await db.rpc(
+            "find_nearby_members",
+            {
+                search_lat: latitude,
+                search_lon: longitude,
+                max_distance_km: maxDistance
+            }
+        );
+
+        if (error) throw error;
+
+        nearbyMembers = (data || []).map(member => ({
+            ...member,
+            id: member.member_id
+        }));
+
+        displayNearbyMembers();
+
+        if (!nearbyMembers.length) {
+            setGpsStatus("No nearby members found. Try a larger distance.");
+        } else {
+            setGpsStatus(
+                `${nearbyMembers.length} nearby member(s) found!`
+            );
+        }
+
+    } catch (error) {
+        console.error(error);
+
+        let message = error.message || "Could not search for nearby members.";
+
+        if (error.code === 1) {
+            message = "Location permission was denied. Please allow location access in your browser.";
+        } else if (error.code === 2) {
+            message = "Your location could not be determined. Try again.";
+        } else if (error.code === 3) {
+            message = "GPS timed out. Please try again.";
+        }
+
+        setGpsStatus(message);
+
+    } finally {
+        showGpsScanner(false);
+        if (button) button.disabled = false;
+    }
+}
+
+
+function displayNearbyMembers() {
+    const container = el("nearbyResults");
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    if (!nearbyMembers.length) {
+        container.textContent = "No nearby members to display.";
+        return;
+    }
+
+    nearbyMembers.forEach(member => {
+        container.appendChild(createMemberCard(member, true));
+    });
+}
+
+
+// ==========================================
+// 12. DISABLE LOCATION SHARING
+// ==========================================
+
+async function disableLocationSharing() {
+    if (!currentUser) return;
+
+    try {
+        const { error } = await db
+            .from("profiles")
+            .update({
+                latitude: null,
+                longitude: null,
+                location_sharing_enabled: false,
+                location_updated_at: null
+            })
+            .eq("id", currentUser.id);
+
+        if (error) throw error;
+
+        nearbyMembers = [];
+
+        if (el("nearbyResults")) {
+            el("nearbyResults").innerHTML =
+                "Location sharing has been disabled.";
+        }
+
+        setGpsStatus("Your location is no longer being shared.");
+
+    } catch (error) {
+        console.error(error);
+        setGpsStatus("Could not disable location sharing: " + error.message);
+    }
+}
+
+
+// ==========================================
+// 13. BUTTONS AND EVENT LISTENERS
+// ==========================================
+
+function addListener(id, event, callback) {
+    const element = el(id);
+
+    if (element) {
+        element.addEventListener(event, callback);
+    }
+}
+
+function setupApp() {
+
+    // Authentication
+    addListener("registerForm", "submit", registerUser);
+    addListener("loginForm", "submit", loginUser);
+    addListener("logoutButton", "click", logoutUser);
+
+    // Profile
+    addListener("profileForm", "submit", saveProfile);
+    addListener("uploadPhotoButton", "click", uploadProfilePhoto);
+
+    // Member search
+    addListener("searchMembers", "click", searchMembers);
+
+    addListener("memberSearch", "input", searchMembers);
+    addListener("genderFilter", "change", searchMembers);
+
+    // Messaging
+    addListener("messageForm", "submit", sendMessage);
+    addListener("refreshChat", "click", loadMessages);
+
+    addListener("closeChat", "click", () => {
+        if (el("chatWindow")) {
+            el("chatWindow").style.display = "none";
+        }
+
+        activeChatUser = null;
+    });
+
+    // GPS
+    addListener("findNearbyButton", "click", findNearbyMembers);
+    addListener("disableLocationButton", "click", disableLocationSharing);
+
+    // Restore login session
+    db.auth.onAuthStateChange((event, session) => {
+        if (session?.user) {
+            setTimeout(() => loadDashboard(), 0);
+        } else {
+            currentUser = null;
+            currentProfile = null;
+            showDashboard(false);
+        }
+    });
+}
+
+
+// ==========================================
+// 14. START APPLICATION
+// ==========================================
+
+document.addEventListener("DOMContentLoaded", async () => {
+    setupApp();
+
+    const { data } = await db.auth.getSession();
+
+    if (data.session?.user) {
+        await loadDashboard();
+    } else {
+        showDashboard(false);
+    }
+});
