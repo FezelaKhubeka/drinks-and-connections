@@ -1,10 +1,9 @@
-
-"use strict";
-
-/* ===================================
+/* ==========================================
    DRINKS & CONNECTIONS
-   SUPABASE CONFIGURATION
-=================================== */
+   COMPLETE WEBSITE JAVASCRIPT
+========================================== */
+
+/* SUPABASE CONFIGURATION */
 
 const SUPABASE_URL =
   "https://xnmvqjbquibqcjryxpge.supabase.co";
@@ -12,41 +11,49 @@ const SUPABASE_URL =
 const SUPABASE_KEY =
   "sb_publishable_7YtYRhqp0walmpQX22pYCg_kdt45GEf";
 
+const PHOTO_BUCKET = "profile-photos";
+
 const db = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_KEY
 );
 
-const el = id => document.getElementById(id);
+/* APPLICATION STATE */
 
 let currentMember = null;
 let activeChatUser = null;
+
+let allMembers = [];
 let memberLikes = [];
 let mutualMembers = [];
-let allMembers = [];
-let messageSubscription = null;
 
-/* ===================================
+/* ==========================================
    GENERAL FUNCTIONS
-=================================== */
+========================================== */
 
-function showMessage(message, success = false) {
-  el("message").textContent = message;
-  el("message").style.color =
-    success ? "#77d99a" : "#ff9999";
+function el(id) {
+  return document.getElementById(id);
 }
 
-function safeText(value) {
-  return String(value || "").replace(
-    /[&<>"']/g,
-    char => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    })[char]
-  );
+function showMessage(message, type = "success") {
+  const box = el("message");
+
+  box.textContent = message;
+  box.className = "message show " + type;
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
+
+function setPhotoMessage(message, color = "") {
+  const box = el("photoMessage");
+  box.textContent = message;
+
+  if (color) {
+    box.style.color = color;
+  }
 }
 
 function calculateAge(dateString) {
@@ -61,53 +68,58 @@ function calculateAge(dateString) {
       today.getMonth() === birth.getMonth() &&
       today.getDate() < birth.getDate()
     )
-  ) age--;
+  ) {
+    age--;
+  }
 
   return age;
 }
 
-/* ===================================
-   AUTHENTICATION
-=================================== */
-
-function showLogin() {
-  el("registerPanel").classList.add("hidden");
-  el("loginPanel").classList.remove("hidden");
-  showMessage("");
+function setButtonLoading(button, loading, originalText) {
+  button.disabled = loading;
+  button.textContent = loading ? "Please wait..." : originalText;
 }
 
-function showRegister() {
-  el("loginPanel").classList.add("hidden");
-  el("registerPanel").classList.remove("hidden");
-  showMessage("");
-}
-
-el("showLogin").addEventListener("click", showLogin);
-el("showRegister").addEventListener("click", showRegister);
-
-/* REGISTER */
+/* ==========================================
+   REGISTRATION
+========================================== */
 
 el("registerForm").addEventListener("submit", async event => {
   event.preventDefault();
 
-  const name = el("regName").value.trim();
-  const dob = el("regDob").value;
-  const email = el("regEmail").value.trim();
-  const password = el("regPassword").value;
+  const button = event.submitter;
 
-  if (!name || !dob || !email || password.length < 8) {
-    showMessage("Please complete all fields correctly.");
+  const name = el("registerName").value.trim();
+  const dob = el("registerDob").value;
+  const email = el("registerEmail").value.trim();
+  const password = el("registerPassword").value;
+
+  if (!name || !dob || !email || !password) {
+    showMessage("Please complete all fields.", "error");
+    return;
+  }
+
+  if (!el("ageConfirm").checked) {
+    showMessage("Please confirm that you are 18 or older.", "error");
+    return;
+  }
+
+  if (new Date(dob) > new Date()) {
+    showMessage("Please enter a valid date of birth.", "error");
     return;
   }
 
   if (calculateAge(dob) < 18) {
-    showMessage("D&C is only available to people aged 18 and older.");
+    showMessage("You must be at least 18 years old.", "error");
     return;
   }
 
-  const button = el("registerButton");
-  button.disabled = true;
-  button.textContent = "Creating account...";
+  if (password.length < 8) {
+    showMessage("Password must be at least 8 characters.", "error");
+    return;
+  }
+
+  setButtonLoading(button, true, "Create Account");
 
   try {
     const { data, error } = await db.auth.signUp({
@@ -123,162 +135,401 @@ el("registerForm").addEventListener("submit", async event => {
 
     if (error) throw error;
 
+    el("registerForm").reset();
+
     if (data.session && data.user) {
-      await loadProfile(data.user);
+      await loadDashboard(data.user);
+      showMessage("Welcome to Drinks & Connections! 🥂");
     } else {
       showMessage(
-        "Registration successful! Check your email to verify your account.",
-        true
+        "Your account has been created. Please check your email to verify your account."
       );
     }
 
   } catch (error) {
-    showMessage(error.message);
+    showMessage("Registration failed: " + error.message, "error");
   } finally {
-    button.disabled = false;
-    button.textContent = "Create Account";
+    setButtonLoading(button, false, "Create Account");
   }
 });
 
-/* LOGIN */
+/* ==========================================
+   LOGIN
+========================================== */
 
 el("loginForm").addEventListener("submit", async event => {
   event.preventDefault();
 
-  const button = el("loginButton");
-  button.disabled = true;
-  button.textContent = "Logging in...";
+  const button = event.submitter;
+
+  const email = el("loginEmail").value.trim();
+  const password = el("loginPassword").value;
+
+  setButtonLoading(button, true, "Log In");
 
   try {
     const { data, error } = await db.auth.signInWithPassword({
-      email: el("loginEmail").value.trim(),
-      password: el("loginPassword").value
+      email,
+      password
     });
 
     if (error) throw error;
 
-    await loadProfile(data.user);
+    el("loginForm").reset();
+
+    await loadDashboard(data.user);
+
+    showMessage("Welcome back! 🥂");
 
   } catch (error) {
-    showMessage(error.message);
+    showMessage("Login failed: " + error.message, "error");
   } finally {
-    button.disabled = false;
-    button.textContent = "Log In";
+    setButtonLoading(button, false, "Log In");
   }
 });
 
-/* ===================================
-   MEMBER PROFILE
-=================================== */
+/* ==========================================
+   LOAD DASHBOARD
+========================================== */
 
-async function loadProfile(user) {
-  try {
-    currentMember = user;
+async function loadDashboard(user) {
+  currentMember = user;
 
-    const { data, error } = await db
-      .from("profiles")
-      .select("id,display_name,bio,gender,city")
-      .eq("id", user.id)
-      .single();
+  el("authSection").classList.add("hidden");
+  el("dashboard").classList.remove("hidden");
 
-    if (error) throw error;
+  el("profileEmail").textContent = user.email || "";
 
-    el("authSection").classList.add("hidden");
-    el("dashboard").classList.remove("hidden");
+  await loadProfile();
+  await loadSocialFeatures();
+}
 
-    el("profileName").textContent =
-      data.display_name || "D&C Member";
+/* ==========================================
+   LOAD PROFILE
+========================================== */
 
-    el("profileEmail").textContent = user.email || "";
+async function loadProfile() {
+  if (!currentMember) return;
 
-    el("bio").value = data.bio || "";
-    el("gender").value = data.gender || "";
-    el("city").value = data.city || "";
+  const { data, error } = await db
+    .from("profiles")
+    .select("id,display_name,bio,gender,city,avatar_url,avatar_path")
+    .eq("id", currentMember.id)
+    .maybeSingle();
 
-    await loadSocialFeatures(user);
+  if (error) {
+    showMessage("Profile error: " + error.message, "error");
+    return;
+  }
 
-    showMessage("Welcome to Drinks & Connections!", true);
+  if (!data) {
+    const metadata = currentMember.user_metadata || {};
 
-  } catch (error) {
-    showMessage("Profile loading error: " + error.message);
+    el("displayName").value = metadata.display_name || "";
+
+    showMessage(
+      "Your profile record is missing. Check your Supabase profile creation trigger.",
+      "error"
+    );
+
+    return;
+  }
+
+  el("displayName").value = data.display_name || "";
+  el("bio").value = data.bio || "";
+  el("gender").value = data.gender || "";
+  el("city").value = data.city || "";
+
+  if (data.avatar_url) {
+    el("profilePhotoPreview").src = data.avatar_url;
+    el("profilePhotoPreview").classList.remove("hidden");
+    el("profilePhotoPlaceholder").classList.add("hidden");
+  } else {
+    el("profilePhotoPreview").classList.add("hidden");
+    el("profilePhotoPlaceholder").classList.remove("hidden");
   }
 }
 
-/* SAVE PROFILE */
+/* ==========================================
+   SAVE PROFILE
+========================================== */
 
 el("profileForm").addEventListener("submit", async event => {
   event.preventDefault();
 
-  const button = el("saveButton");
-  button.disabled = true;
+  if (!currentMember) return;
+
+  const button = event.submitter;
+
+  setButtonLoading(button, true, "Save Profile");
 
   try {
-    const { data: { user }, error: authError } =
-      await db.auth.getUser();
-
-    if (authError) throw authError;
-    if (!user) throw new Error("Please log in again.");
+    const updates = {
+      display_name: el("displayName").value.trim(),
+      bio: el("bio").value.trim(),
+      gender: el("gender").value,
+      city: el("city").value.trim()
+    };
 
     const { error } = await db
       .from("profiles")
-      .update({
-        bio: el("bio").value.trim(),
-        gender: el("gender").value,
-        city: el("city").value.trim()
-      })
-      .eq("id", user.id);
+      .update(updates)
+      .eq("id", currentMember.id);
 
     if (error) throw error;
 
-    showMessage("Your profile has been saved!", true);
+    showMessage("Your profile has been saved successfully! 🥂");
+
     await loadMembers();
 
   } catch (error) {
-    showMessage(error.message);
+    showMessage("Could not save profile: " + error.message, "error");
   } finally {
-    button.disabled = false;
+    setButtonLoading(button, false, "Save Profile");
   }
 });
 
-/* ===================================
-   SOCIAL FEATURES
-=================================== */
+/* ==========================================
+   PROFILE PHOTO PREVIEW
+========================================== */
 
-async function loadSocialFeatures(user) {
-  currentMember = user;
+el("profilePhotoInput").addEventListener("change", event => {
+  const file = event.target.files[0];
 
-  await loadLikes();
-  await loadMembers();
-  await loadMutualConnections();
-}
+  if (!file) return;
 
-/* LOAD MEMBERS */
+  const allowedTypes = [
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ];
 
-async function loadMembers() {
-  const results = el("memberResults");
-  results.textContent = "Loading members...";
+  if (!allowedTypes.includes(file.type)) {
+    setPhotoMessage("Please select a JPG, PNG or WEBP image.", "#ff7777");
+    event.target.value = "";
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    setPhotoMessage("Image must be smaller than 5 MB.", "#ff7777");
+    event.target.value = "";
+    return;
+  }
+
+  const preview = el("profilePhotoPreview");
+
+  if (preview.dataset.previewUrl) {
+    URL.revokeObjectURL(preview.dataset.previewUrl);
+  }
+
+  const previewUrl = URL.createObjectURL(file);
+
+  preview.dataset.previewUrl = previewUrl;
+  preview.src = previewUrl;
+
+  preview.classList.remove("hidden");
+  el("profilePhotoPlaceholder").classList.add("hidden");
+
+  setPhotoMessage(
+    "Image ready. Click Upload Profile Picture.",
+    "#d9ad62"
+  );
+});
+
+/* ==========================================
+   UPLOAD PROFILE PHOTO
+========================================== */
+
+el("uploadPhotoButton").addEventListener("click", async () => {
+  if (!currentMember) {
+    setPhotoMessage("Please log in first.", "#ff7777");
+    return;
+  }
+
+  const button = el("uploadPhotoButton");
+  const file = el("profilePhotoInput").files[0];
+
+  if (!file) {
+    setPhotoMessage("Please choose a picture first.", "#ff7777");
+    return;
+  }
+
+  const extensions = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp"
+  };
+
+  if (!extensions[file.type] || file.size > 5 * 1024 * 1024) {
+    setPhotoMessage("Invalid image or image exceeds 5 MB.", "#ff7777");
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Uploading...";
+
+  let newPath = null;
+  let profileSaved = false;
 
   try {
-    const { data, error } = await db
+    const { data: oldProfile, error: readError } = await db
       .from("profiles")
-      .select("id,display_name,bio,gender,city")
-      .neq("id", currentMember.id)
-      .limit(100);
+      .select("avatar_path")
+      .eq("id", currentMember.id)
+      .single();
 
-    if (error) throw error;
+    if (readError) throw readError;
 
-    allMembers = data || [];
-    displayMembers(allMembers);
+    newPath =
+      currentMember.id + "/" +
+      Date.now() + "." + extensions[file.type];
+
+    const { error: uploadError } = await db.storage
+      .from(PHOTO_BUCKET)
+      .upload(newPath, file, {
+        cacheControl: "3600",
+        contentType: file.type,
+        upsert: false
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: publicData } = db.storage
+      .from(PHOTO_BUCKET)
+      .getPublicUrl(newPath);
+
+    const imageUrl = publicData.publicUrl;
+
+    const { error: updateError } = await db
+      .from("profiles")
+      .update({
+        avatar_url: imageUrl,
+        avatar_path: newPath
+      })
+      .eq("id", currentMember.id);
+
+    if (updateError) throw updateError;
+
+    profileSaved = true;
+
+    const preview = el("profilePhotoPreview");
+
+    preview.src = imageUrl + "?v=" + Date.now();
+    preview.classList.remove("hidden");
+
+    el("profilePhotoPlaceholder").classList.add("hidden");
+
+    if (
+      oldProfile.avatar_path &&
+      oldProfile.avatar_path !== newPath
+    ) {
+      const { error: deleteError } = await db.storage
+        .from(PHOTO_BUCKET)
+        .remove([oldProfile.avatar_path]);
+
+      if (deleteError) {
+        console.warn("Old photo cleanup failed:", deleteError.message);
+      }
+    }
+
+    el("profilePhotoInput").value = "";
+
+    setPhotoMessage(
+      "Your profile picture has been uploaded successfully! 🥂",
+      "#70d49a"
+    );
+
+    await loadMembers();
 
   } catch (error) {
-    results.textContent = error.message;
+
+    if (newPath && !profileSaved) {
+      await db.storage
+        .from(PHOTO_BUCKET)
+        .remove([newPath]);
+    }
+
+    setPhotoMessage("Upload failed: " + error.message, "#ff7777");
+
+  } finally {
+    button.disabled = false;
+    button.textContent = "Upload Profile Picture 📸";
   }
+});
+
+/* ==========================================
+   LOAD SOCIAL FEATURES
+========================================== */
+
+async function loadSocialFeatures() {
+  await loadLikes();
+  await loadMutualConnections();
+  await loadMembers();
 }
 
-/* DISPLAY MEMBERS */
+/* ==========================================
+   LOAD MEMBERS
+========================================== */
+
+async function loadMembers() {
+  if (!currentMember) return;
+
+  const results = el("memberResults");
+
+  results.textContent = "Loading members...";
+
+  const { data, error } = await db
+    .from("profiles")
+    .select("id,display_name,bio,gender,city,avatar_url")
+    .neq("id", currentMember.id)
+    .limit(100);
+
+  if (error) {
+    results.textContent = "Could not load members: " + error.message;
+    return;
+  }
+
+  allMembers = data || [];
+
+  searchMembers();
+}
+
+/* ==========================================
+   MEMBER SEARCH
+========================================== */
+
+function searchMembers() {
+  const query = el("memberSearch").value.toLowerCase().trim();
+  const gender = el("genderFilter").value;
+
+  const filtered = allMembers.filter(member => {
+
+    const searchable = [
+      member.display_name,
+      member.city,
+      member.bio
+    ].join(" ").toLowerCase();
+
+    return (
+      searchable.includes(query) &&
+      (!gender || member.gender === gender)
+    );
+  });
+
+  displayMembers(filtered);
+}
+
+el("searchMembers").addEventListener("click", searchMembers);
+el("memberSearch").addEventListener("input", searchMembers);
+el("genderFilter").addEventListener("change", searchMembers);
+
+/* ==========================================
+   DISPLAY MEMBER CARDS
+========================================== */
 
 function displayMembers(members) {
   const results = el("memberResults");
+
   results.innerHTML = "";
 
   if (!members.length) {
@@ -287,14 +538,26 @@ function displayMembers(members) {
   }
 
   members.forEach(member => {
-    const name = safeText(member.display_name || "D&C Member");
 
     const card = document.createElement("div");
     card.className = "member-card";
 
     const avatar = document.createElement("div");
     avatar.className = "member-avatar";
-    avatar.textContent = name.charAt(0).toUpperCase();
+
+    if (member.avatar_url) {
+      const image = document.createElement("img");
+
+      image.src = member.avatar_url;
+      image.alt = "Member profile picture";
+      image.loading = "lazy";
+
+      avatar.appendChild(image);
+
+    } else {
+      avatar.textContent =
+        (member.display_name || "D").charAt(0).toUpperCase();
+    }
 
     const heading = document.createElement("h3");
     heading.textContent = member.display_name || "D&C Member";
@@ -303,7 +566,7 @@ function displayMembers(members) {
     city.textContent = member.city || "Location not specified";
 
     const gender = document.createElement("p");
-    gender.textContent = member.gender || "Gender not specified";
+    gender.textContent = member.gender || "Not specified";
 
     const bio = document.createElement("p");
     bio.textContent = member.bio || "No biography yet.";
@@ -311,25 +574,35 @@ function displayMembers(members) {
     card.append(avatar, heading, city, gender, bio);
 
     if (mutualMembers.includes(member.id)) {
+
       const button = document.createElement("button");
       button.textContent = "Message 💬";
-      button.addEventListener("click", () =>
-        openConversation(member.id)
-      );
+
+      button.addEventListener("click", () => {
+        openConversation(member.id);
+      });
+
       card.appendChild(button);
 
     } else if (memberLikes.includes(member.id)) {
+
       const button = document.createElement("button");
-      button.disabled = true;
+
       button.textContent = "Like Sent ❤️";
+      button.disabled = true;
+
       card.appendChild(button);
 
     } else {
+
       const button = document.createElement("button");
+
       button.textContent = "Like ❤️";
-      button.addEventListener("click", () =>
-        likeMember(member.id)
-      );
+
+      button.addEventListener("click", () => {
+        likeMember(member.id);
+      });
+
       card.appendChild(button);
     }
 
@@ -337,41 +610,38 @@ function displayMembers(members) {
   });
 }
 
-/* SEARCH */
-
-el("searchMembers").addEventListener("click", () => {
-  const term = el("memberSearch").value.trim().toLowerCase();
-  const gender = el("genderFilter").value;
-
-  const filtered = allMembers.filter(member => {
-    const search =
-      !term ||
-      (member.display_name || "").toLowerCase().includes(term) ||
-      (member.city || "").toLowerCase().includes(term) ||
-      (member.bio || "").toLowerCase().includes(term);
-
-    return search && (!gender || member.gender === gender);
-  });
-
-  displayMembers(filtered);
-});
-
-/* LOAD LIKES */
+/* ==========================================
+   LOAD OUTGOING LIKES
+========================================== */
 
 async function loadLikes() {
+  if (!currentMember) return;
+
   const { data, error } = await db
     .from("connections")
     .select("liked_user_id")
     .eq("user_id", currentMember.id);
 
-  if (error) throw error;
+  if (error) {
+    showMessage("Could not load likes: " + error.message, "error");
+    return;
+  }
 
   memberLikes = (data || []).map(item => item.liked_user_id);
 }
 
-/* LIKE MEMBER */
+/* ==========================================
+   LIKE A MEMBER
+========================================== */
 
 async function likeMember(memberId) {
+  if (!currentMember || memberId === currentMember.id) return;
+
+  if (memberLikes.includes(memberId)) {
+    showMessage("You have already liked this member.", "error");
+    return;
+  }
+
   try {
     const { error } = await db
       .from("connections")
@@ -382,154 +652,233 @@ async function likeMember(memberId) {
 
     if (error) throw error;
 
-    showMessage("Your like has been sent! ❤️", true);
+    showMessage("Your like has been sent! ❤️");
 
-    await loadSocialFeatures(currentMember);
+    await loadLikes();
+    await loadMutualConnections();
+
+    searchMembers();
 
   } catch (error) {
-    showMessage(error.message);
+    showMessage("Could not send like: " + error.message, "error");
   }
 }
 
-/* MUTUAL CONNECTIONS */
+/* ==========================================
+   LOAD MUTUAL CONNECTIONS
+========================================== */
 
 async function loadMutualConnections() {
-  const { data: outgoing, error: firstError } = await db
-    .from("connections")
-    .select("liked_user_id")
-    .eq("user_id", currentMember.id);
+  if (!currentMember) return;
 
-  if (firstError) throw firstError;
+  const [outgoingResult, incomingResult] = await Promise.all([
 
-  const { data: incoming, error: secondError } = await db
-    .from("connections")
-    .select("user_id")
-    .eq("liked_user_id", currentMember.id);
+    db.from("connections")
+      .select("liked_user_id")
+      .eq("user_id", currentMember.id),
 
-  if (secondError) throw secondError;
+    db.from("connections")
+      .select("user_id")
+      .eq("liked_user_id", currentMember.id)
 
-  const incomingIds = new Set(
-    (incoming || []).map(item => item.user_id)
-  );
+  ]);
 
-  mutualMembers = (outgoing || [])
-    .map(item => item.liked_user_id)
-    .filter(id => incomingIds.has(id));
+  if (outgoingResult.error || incomingResult.error) {
+    console.error(
+      outgoingResult.error || incomingResult.error
+    );
+
+    return;
+  }
+
+  const outgoing = (outgoingResult.data || [])
+    .map(item => item.liked_user_id);
+
+  const incoming = (incomingResult.data || [])
+    .map(item => item.user_id);
+
+  mutualMembers = outgoing.filter(id => incoming.includes(id));
 
   const contacts = el("chatContacts");
   contacts.innerHTML = "";
 
   if (!mutualMembers.length) {
-    contacts.textContent = "No mutual connections yet.";
+    contacts.textContent =
+      "No mutual connections yet. Keep discovering! ❤️";
+
+    return;
   }
 
-  mutualMembers.forEach(id => {
-    const member = allMembers.find(person => person.id === id);
+  const { data, error } = await db
+    .from("profiles")
+    .select("id,display_name,avatar_url")
+    .in("id", mutualMembers);
 
-    if (!member) return;
+  if (error) {
+    contacts.textContent =
+      "Could not load connections: " + error.message;
+
+    return;
+  }
+
+  (data || []).forEach(member => {
 
     const item = document.createElement("div");
-    item.className = "connection-item";
+    item.className = "contact-item";
 
-    const title = document.createElement("strong");
-    title.textContent =
-      (member.display_name || "Member") + " ❤️";
+    const name = document.createElement("span");
+
+    name.textContent =
+      "❤️ " + (member.display_name || "D&C Member");
 
     const button = document.createElement("button");
-    button.textContent = "Open Chat 💬";
-    button.addEventListener("click", () => openConversation(id));
 
-    item.append(title, button);
+    button.textContent = "Chat 💬";
+
+    button.addEventListener("click", () => {
+      openConversation(member.id);
+    });
+
+    item.append(name, button);
     contacts.appendChild(item);
   });
-
-  displayMembers(allMembers);
 }
 
-/* ===================================
-   PRIVATE MESSAGING
-=================================== */
+/* ==========================================
+   OPEN CHAT
+========================================== */
 
 async function openConversation(memberId) {
   if (!mutualMembers.includes(memberId)) {
-    showMessage("You need a mutual connection first.");
+    showMessage(
+      "You need a mutual connection before messaging.",
+      "error"
+    );
+
     return;
   }
 
   activeChatUser = memberId;
 
-  const member = allMembers.find(person => person.id === memberId);
+  const member = allMembers.find(item => item.id === memberId);
 
   el("chatTitle").textContent =
-    "Chat with " + (member?.display_name || "Member");
+    "Chat with " + (member?.display_name || "D&C Member");
 
   el("chatWindow").classList.remove("hidden");
 
   await loadMessages();
+
+  el("chatWindow").scrollIntoView({
+    behavior: "smooth"
+  });
 }
 
-/* LOAD MESSAGES */
+/* ==========================================
+   LOAD CHAT MESSAGES
+========================================== */
 
 async function loadMessages() {
-  if (!activeChatUser) return;
+  if (!currentMember || !activeChatUser) return;
 
-  const chat = el("chatMessages");
-  chat.textContent = "Loading messages...";
+  if (!mutualMembers.includes(activeChatUser)) {
+    el("chatMessages").textContent =
+      "This connection is no longer available.";
 
-  try {
-    const { data, error } = await db
-      .from("messages")
-      .select("*")
-      .or(
-        `and(sender_id.eq.${currentMember.id},recipient_id.eq.${activeChatUser}),and(sender_id.eq.${activeChatUser},recipient_id.eq.${currentMember.id})`
-      )
-      .order("created_at", { ascending: true });
-
-    if (error) throw error;
-
-    chat.innerHTML = "";
-
-    if (!data.length) {
-      chat.textContent = "Say hello and start chatting!";
-    }
-
-    data.forEach(message => {
-      const bubble = document.createElement("div");
-
-      bubble.className =
-        "chat-bubble" +
-        (message.sender_id === currentMember.id ? " mine" : "");
-
-      const content = document.createElement("span");
-      content.textContent = message.content;
-
-      const time = document.createElement("small");
-      time.textContent =
-        new Date(message.created_at).toLocaleString();
-
-      bubble.append(content, time);
-      chat.appendChild(bubble);
-    });
-
-    chat.scrollTop = chat.scrollHeight;
-
-  } catch (error) {
-    chat.textContent = "Unable to load messages.";
-    showMessage(error.message);
+    return;
   }
+
+  const messagesBox = el("chatMessages");
+
+  messagesBox.textContent = "Loading messages...";
+
+  const myId = currentMember.id;
+  const otherId = activeChatUser;
+
+  const filter =
+    "and(sender_id.eq." + myId +
+    ",recipient_id.eq." + otherId + ")," +
+    "and(sender_id.eq." + otherId +
+    ",recipient_id.eq." + myId + ")";
+
+  const { data, error } = await db
+    .from("messages")
+    .select("id,sender_id,recipient_id,content,created_at")
+    .or(filter)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    messagesBox.textContent =
+      "Could not load messages: " + error.message;
+
+    return;
+  }
+
+  messagesBox.innerHTML = "";
+
+  if (!data || !data.length) {
+    messagesBox.textContent =
+      "Start your conversation! 🥂";
+
+    return;
+  }
+
+  data.forEach(message => {
+
+    const bubble = document.createElement("div");
+
+    bubble.className =
+      "chat-bubble " +
+      (
+        message.sender_id === myId
+          ? "mine"
+          : "theirs"
+      );
+
+    const content = document.createElement("span");
+
+    content.textContent = message.content;
+
+    const time = document.createElement("small");
+
+    time.textContent =
+      new Date(message.created_at).toLocaleString();
+
+    bubble.append(content, time);
+
+    messagesBox.appendChild(bubble);
+  });
+
+  messagesBox.scrollTop = messagesBox.scrollHeight;
 }
 
-/* SEND MESSAGE */
+/* ==========================================
+   SEND MESSAGE
+========================================== */
 
 el("messageForm").addEventListener("submit", async event => {
   event.preventDefault();
 
-  const content = el("messageInput").value.trim();
+  if (!currentMember || !activeChatUser) return;
 
-  if (!content || !activeChatUser) return;
+  if (!mutualMembers.includes(activeChatUser)) {
+    showMessage(
+      "You can only message mutual connections.",
+      "error"
+    );
 
+    return;
+  }
+
+  const input = el("messageInput");
   const button = event.submitter;
-  if (button) button.disabled = true;
+
+  const content = input.value.trim();
+
+  if (!content) return;
+
+  button.disabled = true;
+  button.textContent = "Sending...";
 
   try {
     const { error } = await db
@@ -537,42 +886,48 @@ el("messageForm").addEventListener("submit", async event => {
       .insert({
         sender_id: currentMember.id,
         recipient_id: activeChatUser,
-        content
+        content: content
       });
 
     if (error) throw error;
 
-    el("messageInput").value = "";
+    input.value = "";
+
     await loadMessages();
 
   } catch (error) {
-    showMessage("Message failed: " + error.message);
+    showMessage("Message failed: " + error.message, "error");
   } finally {
-    if (button) button.disabled = false;
+    button.disabled = false;
+    button.textContent = "Send";
   }
 });
+
+/* REFRESH CHAT */
+
+el("refreshChat").addEventListener("click", loadMessages);
 
 /* CLOSE CHAT */
 
 el("closeChat").addEventListener("click", () => {
+
   activeChatUser = null;
+
   el("chatWindow").classList.add("hidden");
+
+  el("chatMessages").innerHTML = "";
 });
 
-/* MANUAL REFRESH */
-
-const refreshButton = document.createElement("button");
-refreshButton.className = "secondary";
-refreshButton.textContent = "Refresh Messages";
-refreshButton.type = "button";
-refreshButton.addEventListener("click", loadMessages);
-el("chatWindow").appendChild(refreshButton);
-
-/* ===================================
-   LOGOUT AND SESSION RESTORE
-=================================== */
+/* ==========================================
+   LOGOUT
+========================================== */
 
 el("logoutButton").addEventListener("click", async () => {
+
+  const button = el("logoutButton");
+
+  button.disabled = true;
+
   try {
     const { error } = await db.auth.signOut();
 
@@ -580,48 +935,45 @@ el("logoutButton").addEventListener("click", async () => {
 
     currentMember = null;
     activeChatUser = null;
+
+    allMembers = [];
     memberLikes = [];
     mutualMembers = [];
-    allMembers = [];
 
     el("dashboard").classList.add("hidden");
     el("authSection").classList.remove("hidden");
+    el("chatWindow").classList.add("hidden");
 
-    el("loginForm").reset();
-    showLogin();
+    el("memberResults").innerHTML = "";
+    el("chatContacts").innerHTML = "";
 
-    showMessage("You have logged out.", true);
+    showMessage("You have logged out successfully.");
 
   } catch (error) {
-    showMessage(error.message);
+    showMessage("Logout failed: " + error.message, "error");
+  } finally {
+    button.disabled = false;
   }
 });
 
-/* RESTORE SESSION */
+/* ==========================================
+   RESTORE LOGIN SESSION
+========================================== */
 
 async function restoreSession() {
+
   const { data, error } = await db.auth.getSession();
 
   if (error) {
-    showMessage(error.message);
+    showMessage("Session error: " + error.message, "error");
     return;
   }
 
-  if (data.session) {
-    await loadProfile(data.session.user);
+  if (data.session && data.session.user) {
+    await loadDashboard(data.session.user);
   }
 }
 
+/* START APPLICATION */
+
 restoreSession();
-
-/* AUTH STATE CHANGES */
-
-db.auth.onAuthStateChange((event, session) => {
-  if (event === "SIGNED_OUT") {
-    currentMember = null;
-    activeChatUser = null;
-
-    el("dashboard").classList.add("hidden");
-    el("authSection").classList.remove("hidden");
-  }
-});
