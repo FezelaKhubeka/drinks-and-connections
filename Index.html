@@ -1,382 +1,691 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#111114">
-<title>Drinks & Connections | D&C</title>
+<meta name="theme-color" content="#111116">
+
+<title>Drinks & Connections | Meet. Connect. Enjoy.</title>
+<meta name="description" content="Meet new people, discover connections and enjoy meaningful conversations at Drinks & Connections.">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
 :root {
-  --gold: #e9a34b;
-  --dark: #111114;
-  --card: #1d1d24;
-  --muted: #a6a6b1;
+  --bg: #101014;
+  --panel: #1b1b23;
+  --gold: #d9ad62;
+  --gold-dark: #a77a37;
+  --text: #f5f2ed;
+  --muted: #aaa7b0;
+  --border: #383640;
+  --danger: #e77c7c;
+  --success: #78d49b;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
+
+* {
+  box-sizing: border-box;
+}
+
 body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
   font-family: Arial, sans-serif;
-  background: var(--dark);
-  color: white;
-  min-height: 100vh;
+  line-height: 1.6;
 }
-header {
-  padding: 22px 7%;
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 9px;
+  padding: 12px 18px;
+  background: var(--gold);
+  color: #17130d;
+  font-weight: bold;
+  transition: .2s;
+}
+
+button:hover {
+  background: #f0c77d;
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+input, select, textarea {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin: 7px 0 17px;
+  background: #111117;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: white;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 1px solid var(--gold);
+  border-color: var(--gold);
+}
+
+label {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.main-header {
+  text-align: center;
+  padding: 25px 15px;
+  border-bottom: 1px solid var(--border);
+  background: #17171e;
+}
+
+.logo {
+  color: var(--gold);
+  font-size: 24px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.main-header p {
+  margin: 3px;
+  color: var(--muted);
+}
+
+.container {
+  width: 100%;
+  max-width: 900px;
+  margin: auto;
+  padding: 20px;
+}
+
+.welcome-section {
+  text-align: center;
+  padding: 35px 10px;
+}
+
+.welcome-section h1 {
+  color: var(--gold);
+  font-size: clamp(27px, 5vw, 42px);
+  line-height: 1.2;
+}
+
+.welcome-section p {
+  color: var(--muted);
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 22px;
+  border-radius: 15px;
+  margin: 20px 0;
+}
+
+.panel h2 {
+  color: var(--gold);
+  margin-top: 0;
+}
+
+.panel p {
+  color: var(--muted);
+}
+
+.panel form > button {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.terms {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 10px 0 20px;
+}
+
+.terms input {
+  width: auto;
+  margin: 0;
+}
+
+.message {
+  display: none;
+  padding: 13px;
+  margin: 12px 0;
+  border-radius: 8px;
+  background: #292932;
+  color: var(--text);
+}
+
+.message.show {
+  display: block;
+}
+
+.message.error {
+  color: #ffaaaa;
+  border: 1px solid #713c3c;
+}
+
+.message.success {
+  color: var(--success);
+  border: 1px solid #326547;
+}
+
+.small {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.profile-photo-editor {
+  text-align: center;
+  background: #13131a;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+.photo-preview-container {
+  width: 125px;
+  height: 125px;
+  margin: 0 auto 15px;
+  border: 3px solid var(--gold);
+  border-radius: 50%;
+  overflow: hidden;
+  background: #49321d;
+}
+
+.photo-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 42px;
+}
+
+.profile-photo-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-photo-editor input[type="file"] {
+  max-width: 350px;
+  margin: 12px auto;
+}
+
+.profile-photo-editor button {
+  max-width: 300px;
+}
+
+.member-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.member-card {
+  background: #13131a;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.member-card h3 {
+  color: var(--gold);
+  margin: 8px 0;
+}
+
+.member-card p {
+  font-size: 14px;
+}
+
+.member-avatar {
+  width: 100px;
+  height: 100px;
+  margin: auto;
+  border-radius: 50%;
+  background: #49321d;
+  border: 2px solid var(--gold);
+  display: grid;
+  place-items: center;
+  font-size: 35px;
+  overflow: hidden;
+}
+
+.member-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.member-card button {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.secondary-button {
+  background: #383640;
+  color: white;
+}
+
+.logout-button {
+  width: 100%;
+  background: #713c3c;
+  color: white;
+}
+
+#chatContacts {
+  display: grid;
+  gap: 10px;
+}
+
+.contact-item {
+  background: #13131a;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.contact-item span {
+  color: var(--text);
+}
+
+.chat-heading {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #303039;
+  flex-wrap: wrap;
+  gap: 10px;
 }
-.brand {
-  font-size: 25px;
-  font-weight: bold;
-  color: var(--gold);
-}
-.brand span { color: white; }
-header a { color: white; text-decoration: none; }
-.hero {
-  text-align: center;
-  padding: 65px 20px 45px;
-  max-width: 850px;
-  margin: auto;
-}
-.hero h1 {
-  font-size: clamp(35px, 7vw, 60px);
-  line-height: 1.12;
-  margin-bottom: 20px;
-}
-.hero h1 span { color: var(--gold); }
-.hero p {
-  color: var(--muted);
-  line-height: 1.7;
-  font-size: 16px;
-}
-.container {
-  width: min(100% - 30px, 480px);
-  margin: 0 auto 55px;
-}
-.card {
-  background: var(--card);
-  border: 1px solid #34343e;
-  border-radius: 18px;
-  padding: 28px;
-  box-shadow: 0 15px 45px #0005;
-}
-h2 { margin-bottom: 20px; }
-label {
-  display: block;
-  font-size: 13px;
-  color: #ddd;
-  margin: 12px 0 7px;
-}
-input, textarea, select {
-  width: 100%;
-  padding: 14px;
-  border-radius: 9px;
-  border: 1px solid #41414d;
-  background: #121217;
-  color: white;
-  font-size: 15px;
-  outline: none;
-}
-input:focus, textarea:focus, select:focus {
-  border-color: var(--gold);
-}
-button {
-  width: 100%;
+
+.chat-messages {
+  background: #111117;
+  border: 1px solid var(--border);
   padding: 15px;
-  border: 0;
-  border-radius: 9px;
-  background: var(--gold);
-  color: #17120c;
-  font-weight: bold;
-  font-size: 15px;
-  cursor: pointer;
-  margin-top: 16px;
+  border-radius: 10px;
+  min-height: 180px;
+  max-height: 350px;
+  overflow-y: auto;
+  margin: 15px 0;
 }
-button:hover { background: #ffc16f; }
-button:disabled { opacity: .5; cursor: wait; }
-.secondary {
-  background: #383842;
-  color: white;
-}
-.switch {
-  text-align: center;
-  margin-top: 20px;
-  color: var(--muted);
-  font-size: 14px;
-}
-.switch a { color: var(--gold); cursor: pointer; }
-.hidden { display: none !important; }
-.message {
-  margin-top: 15px;
-  font-size: 14px;
-  line-height: 1.6;
+
+.chat-bubble {
+  max-width: 85%;
+  padding: 10px 13px;
+  margin: 9px 0;
+  border-radius: 12px;
   overflow-wrap: anywhere;
 }
-.small {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.6;
+
+.chat-bubble.mine {
+  background: #594627;
+  margin-left: auto;
 }
-.profile {
-  background: #121217;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
+
+.chat-bubble.theirs {
+  background: #30303b;
+  margin-right: auto;
 }
-.features {
-  max-width: 1000px;
-  margin: 0 auto 65px;
-  padding: 20px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
-  gap: 15px;
+
+.chat-bubble small {
+  display: block;
+  color: #d0c8ba;
+  font-size: 10px;
+  margin-top: 5px;
 }
-.feature {
-  background: var(--card);
-  border: 1px solid #34343e;
-  border-radius: 13px;
-  padding: 23px;
-}
-.feature h3 { color: var(--gold); margin-bottom: 10px; }
-.feature p { color: var(--muted); line-height: 1.6; font-size: 14px; }
-footer {
-  border-top: 1px solid #303039;
-  padding: 25px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 12px;
-}
-.consent {
+
+#messageForm {
   display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin-top: 14px;
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.5;
+  gap: 8px;
+  align-items: center;
 }
-.consent input { width: auto; margin-top: 2px; }
+
+#messageForm input {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+}
+
+#messageForm button {
+  white-space: nowrap;
+}
+
+.main-footer {
+  text-align: center;
+  border-top: 1px solid var(--border);
+  padding: 25px 10px;
+  color: var(--muted);
+  margin-top: 40px;
+}
+
+@media(max-width: 550px) {
+  .container {
+    padding: 12px;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  #messageForm {
+    flex-direction: column;
+  }
+
+  #messageForm input,
+  #messageForm button {
+    width: 100%;
+  }
+
+  .contact-item {
+    flex-direction: column;
+  }
+}
 </style>
 </head>
 
 <body>
 
-<header>
-  <div class="brand">🥂 D&C<span>.</span></div>
-  <a href="#account">Join D&C</a>
+<header class="main-header">
+  <div class="logo">🥂 DRINKS & CONNECTIONS</div>
+  <p>Meet. Connect. Enjoy.</p>
 </header>
 
-<section class="hero">
-  <h1>Meet people.<br>Make <span>connections.</span></h1>
-  <p>
-    Discover new people, share experiences and find someone
-    to enjoy a drink with. Real connections start here.
-  </p>
-</section>
+<main class="container">
 
-<main class="container" id="account">
+<div id="message" class="message"></div>
 
-  <div class="card" id="authSection">
+<!-- AUTHENTICATION -->
+<section id="authSection">
 
-    <div id="registerPanel">
-      <h2>Create your account 🥂</h2>
-
-      <form id="registerForm">
-        <label for="regName">Your name</label>
-        <input id="regName" maxlength="60" required
-          placeholder="Enter your name">
-
-        <label for="regDob">Date of birth</label>
-        <input id="regDob" type="date" required>
-
-        <label for="regEmail">Email address</label>
-        <input id="regEmail" type="email" required
-          autocomplete="email" placeholder="you@example.com">
-
-        <label for="regPassword">Password</label>
-        <input id="regPassword" type="password" minlength="8"
-          required autocomplete="new-password"
-          placeholder="At least 8 characters">
-
-        <div class="consent">
-          <input type="checkbox" id="terms" required>
-          <label for="terms">
-            I confirm that I am 18 or older and agree to the
-            platform terms and privacy policy.
-          </label>
-        </div>
-
-        <button id="registerButton" type="submit">
-          Create Account
-        </button>
-      </form>
-
-      <p class="switch">
-        Already a member?
-        <a id="showLogin">Log in</a>
-      </p>
-    </div>
-
-    <div id="loginPanel" class="hidden">
-      <h2>Welcome back 🥂</h2>
-
-      <form id="loginForm">
-        <label for="loginEmail">Email address</label>
-        <input id="loginEmail" type="email" required
-          autocomplete="email">
-
-        <label for="loginPassword">Password</label>
-        <input id="loginPassword" type="password" required
-          autocomplete="current-password">
-
-        <button type="submit" id="loginButton">Log In</button>
-      </form>
-
-      <p class="switch">
-        Don't have an account?
-        <a id="showRegister">Join D&C</a>
-      </p>
-    </div>
-
+  <div class="welcome-section">
+    <h1>Where Connections Begin 🥂</h1>
+    <p>Meet interesting people, discover new connections and make every moment count.</p>
   </div>
 
-  <div class="card hidden" id="dashboard">
-    <h2>Welcome to D&C! 🎉</h2>
-    <div class="profile">
-      <p class="small">YOUR MEMBER PROFILE</p>
-      <h2 id="profileName">Member</h2>
-      <p id="profileEmail" class="small"></p>
-    </div>
+  <section class="panel">
+    <h2>Create Your Account</h2>
+    <p>Join Drinks & Connections today.</p>
 
-    <h3>Edit your profile</h3>
+    <form id="registerForm">
+
+      <label for="registerName">Full Name</label>
+      <input id="registerName" type="text" placeholder="Your full name" required>
+
+      <label for="registerDob">Date of Birth</label>
+      <input id="registerDob" type="date" required>
+
+      <label for="registerEmail">Email Address</label>
+      <input id="registerEmail" type="email" placeholder="Email address" required>
+
+      <label for="registerPassword">Password</label>
+      <input id="registerPassword" type="password" minlength="8" placeholder="At least 8 characters" required>
+
+      <label class="terms">
+        <input type="checkbox" id="ageConfirm" required>
+        I confirm that I am 18 years or older.
+      </label>
+
+      <button type="submit">Create Account</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>Welcome Back</h2>
+    <p>Log in to continue connecting.</p>
+
+    <form id="loginForm">
+
+      <label for="loginEmail">Email Address</label>
+      <input id="loginEmail" type="email" required>
+
+      <label for="loginPassword">Password</label>
+      <input id="loginPassword" type="password" required>
+
+      <button type="submit">Log In</button>
+    </form>
+  </section>
+
+</section>
+
+<!-- DASHBOARD -->
+<section id="dashboard" class="hidden">
+
+  <div class="dashboard-heading">
+    <h1>Welcome to Drinks & Connections 🥂</h1>
+    <p>Your next connection could start here.</p>
+    <p id="profileEmail" class="small"></p>
+  </div>
+
+  <!-- PROFILE -->
+  <section class="panel">
+    <h2>Edit Your Profile</h2>
 
     <form id="profileForm">
-      <label for="bio">About me</label>
-      <textarea id="bio" rows="4" maxlength="500"
-        placeholder="Tell people about yourself"></textarea>
+
+      <label for="displayName">Display Name</label>
+      <input id="displayName" type="text" required>
+
+      <div class="profile-photo-editor">
+
+        <div class="photo-preview-container">
+          <div id="profilePhotoPlaceholder" class="photo-placeholder">🥂</div>
+          <img id="profilePhotoPreview" class="profile-photo-preview hidden" alt="Your profile picture">
+        </div>
+
+        <h3>My Profile Picture</h3>
+        <p class="small">Choose a clear picture so other members can recognise you.</p>
+
+        <label for="profilePhotoInput">Choose a profile picture</label>
+        <input id="profilePhotoInput" type="file" accept="image/jpeg,image/png,image/webp">
+
+        <button type="button" id="uploadPhotoButton">Upload Profile Picture 📸</button>
+
+        <p id="photoMessage" class="small"></p>
+      </div>
+
+      <label for="bio">About Me</label>
+      <textarea id="bio" rows="4" placeholder="Tell other members about yourself"></textarea>
 
       <label for="gender">Gender</label>
       <select id="gender">
-        <option value="">Prefer not to say</option>
-        <option value="Man">Man</option>
-        <option value="Woman">Woman</option>
-        <option value="Non-binary">Non-binary</option>
+        <option value="">Select gender</option>
+        <option value="Male">Male</option>
+        <option value="Female">Female</option>
         <option value="Other">Other</option>
+        <option value="Prefer not to say">Prefer not to say</option>
       </select>
 
-      <label for="city">Your city</label>
-      <input id="city" maxlength="100"
-        placeholder="e.g. Pretoria">
+      <label for="city">City</label>
+      <input id="city" type="text" placeholder="Your city">
 
-      <button type="submit" id="saveButton">Save Profile</button>
+      <button type="submit">Save Profile</button>
+
+    </form>
+  </section>
+
+  <!-- DISCOVER -->
+  <section class="panel">
+    <h2>Discover Members 🔎</h2>
+    <p>Find people and start building connections.</p>
+
+    <label for="memberSearch">Search by name, city or biography</label>
+    <input id="memberSearch" type="search" placeholder="Search members...">
+
+    <label for="genderFilter">Filter by gender</label>
+    <select id="genderFilter">
+      <option value="">All members</option>
+      <option value="Male">Male</option>
+      <option value="Female">Female</option>
+      <option value="Other">Other</option>
+    </select>
+
+    <button type="button" id="searchMembers">Search Members</button>
+
+    <div id="memberResults" class="member-results">
+      <p>Members will appear here.</p>
+    </div>
+  </section>
+
+  <!-- CONNECTIONS -->
+  <section class="panel">
+    <h2>My Connections ❤️</h2>
+    <p>When two members like each other, they can start chatting.</p>
+    <div id="connectionResults"></div>
+    <div id="chatContacts"></div>
+  </section>
+
+  <!-- CHAT -->
+  <section id="chatWindow" class="panel hidden">
+
+    <div class="chat-heading">
+      <h2 id="chatTitle">Your Conversation</h2>
+      <button type="button" id="closeChat" class="secondary-button">Close Chat</button>
+    </div>
+
+    <div id="chatMessages" class="chat-messages"></div>
+
+    <button type="button" id="refreshChat" class="secondary-button">Refresh Messages</button>
+
+    <form id="messageForm">
+      <input id="messageInput" type="text" maxlength="2000" placeholder="Write a message..." required>
+      <button type="submit">Send</button>
     </form>
 
-    <button class="secondary" id="logoutButton">Log Out</button>
-  </div>
+  </section>
 
-  <div id="message" class="message" role="status"
-    aria-live="polite"></div>
+  <section class="panel">
+    <button type="button" id="logoutButton" class="logout-button">Log Out</button>
+  </section>
+
+</section>
 
 </main>
 
-<section class="features">
-  <div class="feature">
-    <h3>📍 Discover</h3>
-    <p>Explore people and social opportunities around you.</p>
-  </div>
-  <div class="feature">
-    <h3>🥂 Connect</h3>
-    <p>Find people who share your interests and social plans.</p>
-  </div>
-  <div class="feature">
-    <h3>❤️ Meet</h3>
-    <p>Build meaningful connections with mutual interest.</p>
-  </div>
-</section>
-
-<footer>
-  © 2026 Drinks & Connections (D&C). All rights reserved.
-  <p>18+ only. Meet responsibly. Respect everyone's boundaries.</p>
+<footer class="main-footer">
+  <p>🥂 Drinks & Connections</p>
+  <p>Meet. Connect. Enjoy.</p>
+  <p class="small">18+ Only | Respect. Safety. Genuine Connections.</p>
+  <p class="small">© 2026 Drinks & Connections. All rights reserved.</p>
 </footer>
 
 <script>
-"use strict";
+/* =====================================
+   SUPABASE CONFIGURATION
+===================================== */
 
-/* SUPABASE CONNECTION */
-const SUPABASE_URL =
-  "https://xnmvqjbquibqcjryxpge.supabase.co";
+const SUPABASE_URL = "https://xnmvqjbquibqcjryxpge.supabase.co";
 
-const SUPABASE_KEY =
-  "sb_publishable_7YtYRhqp0walmpQX22pYCg_kdt45GEf";
+const SUPABASE_KEY = "sb_publishable_7YtYRhqp0walmpQX22pYCg_kdt45GEf";
 
 const db = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_KEY
 );
 
-const el = id => document.getElementById(id);
+const PHOTO_BUCKET = "profile-photos";
 
-function showMessage(text, success = false) {
-  el("message").textContent = text;
-  el("message").style.color =
-    success ? "#77d99a" : "#ff9999";
+let currentMember = null;
+let activeChatUser = null;
+let memberLikes = [];
+let mutualMembers = [];
+let allMembers = [];
+
+/* =====================================
+   GENERAL HELPERS
+===================================== */
+
+function el(id) {
+  return document.getElementById(id);
 }
 
-function showLogin() {
-  el("registerPanel").classList.add("hidden");
-  el("loginPanel").classList.remove("hidden");
-  showMessage("");
-}
+function showMessage(message, type = "success") {
+  const box = el("message");
 
-function showRegister() {
-  el("loginPanel").classList.add("hidden");
-  el("registerPanel").classList.remove("hidden");
-  showMessage("");
-}
+  box.textContent = message;
+  box.className = "message show " + type;
 
-el("showLogin").addEventListener("click", showLogin);
-el("showRegister").addEventListener("click", showRegister);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
 function calculateAge(dateString) {
   const birth = new Date(dateString + "T00:00:00");
   const today = new Date();
 
   let age = today.getFullYear() - birth.getFullYear();
-  const month = today.getMonth() - birth.getMonth();
 
-  if (month < 0 ||
-      (month === 0 && today.getDate() < birth.getDate())) {
+  const monthDifference = today.getMonth() - birth.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (monthDifference === 0 && today.getDate() < birth.getDate())
+  ) {
     age--;
   }
 
   return age;
 }
 
-/* REGISTRATION */
+function safeText(value) {
+  return String(value ?? "");
+}
+
+/* =====================================
+   REGISTRATION
+===================================== */
+
 el("registerForm").addEventListener("submit", async event => {
   event.preventDefault();
 
-  const name = el("regName").value.trim();
-  const dob = el("regDob").value;
-  const email = el("regEmail").value.trim();
-  const password = el("regPassword").value;
+  const name = el("registerName").value.trim();
+  const dob = el("registerDob").value;
+  const email = el("registerEmail").value.trim();
+  const password = el("registerPassword").value;
 
-  if (!name || !dob || !email || password.length < 8) {
-    showMessage("Please complete all fields correctly.");
+  if (!name || !dob || !email || !password) {
+    showMessage("Please complete all required fields.", "error");
     return;
   }
 
-  if (calculateAge(dob) < 18) {
-    showMessage("You must be 18 or older to join D&C.");
+  if (!el("ageConfirm").checked || calculateAge(dob) < 18) {
+    showMessage("You must be at least 18 years old to join.", "error");
     return;
   }
 
-  const button = el("registerButton");
+  if (new Date(dob) > new Date()) {
+    showMessage("Please enter a valid date of birth.", "error");
+    return;
+  }
+
+  if (password.length < 8) {
+    showMessage("Your password must contain at least 8 characters.", "error");
+    return;
+  }
+
+  const button = event.submitter;
   button.disabled = true;
   button.textContent = "Creating account...";
 
@@ -394,150 +703,698 @@ el("registerForm").addEventListener("submit", async event => {
 
     if (error) throw error;
 
-    if (data.session && data.user) {
-      await loadProfile(data.user);
-      showMessage("Your account has been created!", true);
+    el("registerForm").reset();
+
+    if (data.session) {
+      showMessage("Account created successfully. Welcome to D&C!");
+      await loadDashboard(data.user);
     } else {
-      showMessage(
-        "Registration successful! Please check your email " +
-        "and verify your account before logging in.",
-        true
-      );
+      showMessage("Account created! Please verify your email before logging in.");
     }
 
   } catch (error) {
-    showMessage(error.message || "Registration failed.");
+    showMessage(error.message, "error");
   } finally {
     button.disabled = false;
     button.textContent = "Create Account";
   }
 });
 
-/* LOGIN */
+/* =====================================
+   LOGIN
+===================================== */
+
 el("loginForm").addEventListener("submit", async event => {
   event.preventDefault();
 
-  const button = el("loginButton");
+  const email = el("loginEmail").value.trim();
+  const password = el("loginPassword").value;
+
+  const button = event.submitter;
   button.disabled = true;
   button.textContent = "Logging in...";
 
   try {
     const { data, error } = await db.auth.signInWithPassword({
-      email: el("loginEmail").value.trim(),
-      password: el("loginPassword").value
+      email,
+      password
     });
 
     if (error) throw error;
 
-    await loadProfile(data.user);
+    el("loginForm").reset();
+    await loadDashboard(data.user);
 
   } catch (error) {
-    showMessage(error.message || "Login failed.");
+    showMessage(error.message, "error");
   } finally {
     button.disabled = false;
     button.textContent = "Log In";
   }
 });
 
-/* LOAD PROFILE */
+/* =====================================
+   DASHBOARD AND PROFILE
+===================================== */
+
+async function loadDashboard(user) {
+  currentMember = user;
+
+  el("authSection").classList.add("hidden");
+  el("dashboard").classList.remove("hidden");
+  el("profileEmail").textContent = user.email || "";
+
+  await loadProfile(user);
+  await loadSocialFeatures();
+
+  showMessage("You are logged in. Welcome to Drinks & Connections!");
+}
+
 async function loadProfile(user) {
-  try {
-    const { data, error } = await db
-      .from("profiles")
-      .select("id,display_name,bio,gender,city")
-      .eq("id", user.id)
-      .single();
+  const { data, error } = await db
+    .from("profiles")
+    .select("id,display_name,bio,gender,city,avatar_url,avatar_path")
+    .eq("id", user.id)
+    .maybeSingle();
 
-    if (error) throw error;
+  if (error) {
+    showMessage("Could not load your profile: " + error.message, "error");
+    return;
+  }
 
-    el("authSection").classList.add("hidden");
-    el("dashboard").classList.remove("hidden");
-
-    el("profileName").textContent =
-      data.display_name || "D&C Member";
-
-    el("profileEmail").textContent = user.email || "";
+  if (data) {
+    el("displayName").value = data.display_name || "";
     el("bio").value = data.bio || "";
     el("gender").value = data.gender || "";
     el("city").value = data.city || "";
 
-    showMessage("You're logged in successfully.", true);
+    if (data.avatar_url) {
+      el("profilePhotoPreview").src = data.avatar_url;
+      el("profilePhotoPreview").classList.remove("hidden");
+      el("profilePhotoPlaceholder").classList.add("hidden");
+    } else {
+      el("profilePhotoPreview").classList.add("hidden");
+      el("profilePhotoPlaceholder").classList.remove("hidden");
+    }
 
-  } catch (error) {
-    showMessage("Profile loading error: " + error.message);
+  } else {
+    const metadata = user.user_metadata || {};
+    el("displayName").value = metadata.display_name || "";
+    showMessage(
+      "Your profile record was not found. Check that your Supabase profile-creation trigger is working.",
+      "error"
+    );
   }
 }
 
 /* SAVE PROFILE */
+
 el("profileForm").addEventListener("submit", async event => {
   event.preventDefault();
 
-  const button = el("saveButton");
+  if (!currentMember) return;
+
+  const button = event.submitter;
   button.disabled = true;
 
   try {
-    const { data: { user }, error: userError } =
-      await db.auth.getUser();
-
-    if (userError) throw userError;
-    if (!user) throw new Error("Please log in again.");
-
     const { error } = await db
       .from("profiles")
       .update({
+        display_name: el("displayName").value.trim(),
         bio: el("bio").value.trim(),
         gender: el("gender").value,
         city: el("city").value.trim()
       })
-      .eq("id", user.id);
+      .eq("id", currentMember.id);
 
     if (error) throw error;
 
-    showMessage("Your profile has been saved!", true);
+    showMessage("Your profile has been updated successfully!");
+
+    await loadMembers();
 
   } catch (error) {
-    showMessage(error.message);
+    showMessage("Profile update failed: " + error.message, "error");
   } finally {
     button.disabled = false;
   }
 });
 
-/* LOGOUT */
-el("logoutButton").addEventListener("click", async () => {
-  try {
-    const { error } = await db.auth.signOut();
-    if (error) throw error;
+/* =====================================
+   PROFILE PHOTO UPLOAD
+===================================== */
 
-    el("dashboard").classList.add("hidden");
-    el("authSection").classList.remove("hidden");
-    el("loginForm").reset();
-    showLogin();
-    showMessage("You have logged out.", true);
+el("profilePhotoInput").addEventListener("change", event => {
+  const file = event.target.files[0];
+
+  if (!file) return;
+
+  const allowed = [
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ];
+
+  if (!allowed.includes(file.type)) {
+    el("photoMessage").textContent = "Choose a JPG, PNG or WEBP image.";
+    event.target.value = "";
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    el("photoMessage").textContent = "Your image must be smaller than 5 MB.";
+    event.target.value = "";
+    return;
+  }
+
+  const preview = el("profilePhotoPreview");
+
+  preview.src = URL.createObjectURL(file);
+  preview.classList.remove("hidden");
+  el("profilePhotoPlaceholder").classList.add("hidden");
+
+  el("photoMessage").textContent = "Preview ready. Click Upload Profile Picture.";
+});
+
+el("uploadPhotoButton").addEventListener("click", async () => {
+  const button = el("uploadPhotoButton");
+  const file = el("profilePhotoInput").files[0];
+
+  if (!currentMember) {
+    el("photoMessage").textContent = "Please log in first.";
+    return;
+  }
+
+  if (!file) {
+    el("photoMessage").textContent = "Please choose a picture first.";
+    return;
+  }
+
+  const extensions = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp"
+  };
+
+  if (!extensions[file.type] || file.size > 5 * 1024 * 1024) {
+    el("photoMessage").textContent = "Invalid image or image exceeds 5 MB.";
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Uploading...";
+
+  let newPath = null;
+  let profileSaved = false;
+
+  try {
+    const { data: oldProfile, error: readError } = await db
+      .from("profiles")
+      .select("avatar_path")
+      .eq("id", currentMember.id)
+      .single();
+
+    if (readError) throw readError;
+
+    newPath = currentMember.id + "/" +
+      Date.now() + "." + extensions[file.type];
+
+    const { error: uploadError } = await db.storage
+      .from(PHOTO_BUCKET)
+      .upload(newPath, file, {
+        cacheControl: "3600",
+        contentType: file.type,
+        upsert: false
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: publicData } = db.storage
+      .from(PHOTO_BUCKET)
+      .getPublicUrl(newPath);
+
+    const imageUrl = publicData.publicUrl;
+
+    const { error: updateError } = await db
+      .from("profiles")
+      .update({
+        avatar_url: imageUrl,
+        avatar_path: newPath
+      })
+      .eq("id", currentMember.id);
+
+    if (updateError) throw updateError;
+
+    profileSaved = true;
+
+    if (oldProfile.avatar_path && oldProfile.avatar_path !== newPath) {
+      const { error: deleteError } = await db.storage
+        .from(PHOTO_BUCKET)
+        .remove([oldProfile.avatar_path]);
+
+      if (deleteError) {
+        console.warn("Old photo cleanup failed:", deleteError.message);
+      }
+    }
+
+    el("profilePhotoPreview").src = imageUrl + "?v=" + Date.now();
+    el("profilePhotoPreview").classList.remove("hidden");
+    el("profilePhotoPlaceholder").classList.add("hidden");
+
+    el("photoMessage").textContent = "Profile picture uploaded successfully! 🥂";
+    el("photoMessage").style.color = "#78d49b";
+
+    el("profilePhotoInput").value = "";
+
+    await loadMembers();
 
   } catch (error) {
-    showMessage(error.message);
+    if (newPath && !profileSaved) {
+      await db.storage.from(PHOTO_BUCKET).remove([newPath]);
+    }
+
+    el("photoMessage").textContent = "Upload failed: " + error.message;
+    el("photoMessage").style.color = "#ff9999";
+
+  } finally {
+    button.disabled = false;
+    button.textContent = "Upload Profile Picture 📸";
   }
 });
 
-/* RESTORE LOGIN SESSION */
-db.auth.getSession().then(({ data, error }) => {
+/* =====================================
+   SOCIAL FEATURES
+===================================== */
+
+async function loadSocialFeatures() {
+  await loadLikes();
+  await loadMembers();
+  await loadMutualConnections();
+}
+
+/* LOAD MEMBERS */
+
+async function loadMembers() {
+  if (!currentMember) return;
+
+  const { data, error } = await db
+    .from("profiles")
+    .select("id,display_name,bio,gender,city,avatar_url")
+    .neq("id", currentMember.id)
+    .limit(100);
+
   if (error) {
-    showMessage(error.message);
+    el("memberResults").textContent = "Could not load members: " + error.message;
+    return;
+  }
+
+  allMembers = data || [];
+  searchMembers();
+}
+
+/* SEARCH MEMBERS */
+
+function searchMembers() {
+  const query = el("memberSearch").value.toLowerCase().trim();
+  const gender = el("genderFilter").value;
+
+  const filtered = allMembers.filter(member => {
+    const searchable = [
+      member.display_name,
+      member.city,
+      member.bio
+    ].join(" ").toLowerCase();
+
+    const matchesSearch = searchable.includes(query);
+    const matchesGender = !gender || member.gender === gender;
+
+    return matchesSearch && matchesGender;
+  });
+
+  displayMembers(filtered);
+}
+
+el("searchMembers").addEventListener("click", searchMembers);
+el("memberSearch").addEventListener("input", searchMembers);
+el("genderFilter").addEventListener("change", searchMembers);
+
+/* DISPLAY MEMBERS */
+
+function displayMembers(members) {
+  const results = el("memberResults");
+  results.innerHTML = "";
+
+  if (!members.length) {
+    results.textContent = "No members found.";
+    return;
+  }
+
+  members.forEach(member => {
+    const card = document.createElement("div");
+    card.className = "member-card";
+
+    const avatar = document.createElement("div");
+    avatar.className = "member-avatar";
+
+    if (member.avatar_url) {
+      const photo = document.createElement("img");
+      photo.src = member.avatar_url;
+      photo.alt = "Member profile picture";
+      photo.loading = "lazy";
+      avatar.appendChild(photo);
+    } else {
+      avatar.textContent =
+        (member.display_name || "D").charAt(0).toUpperCase();
+    }
+
+    const heading = document.createElement("h3");
+    heading.textContent = member.display_name || "D&C Member";
+
+    const city = document.createElement("p");
+    city.textContent = member.city || "Location not specified";
+
+    const gender = document.createElement("p");
+    gender.textContent = member.gender || "Not specified";
+
+    const bio = document.createElement("p");
+    bio.textContent = member.bio || "No biography yet.";
+
+    card.append(avatar, heading, city, gender, bio);
+
+    if (mutualMembers.includes(member.id)) {
+      const button = document.createElement("button");
+      button.textContent = "Message 💬";
+      button.addEventListener("click", () => openConversation(member.id));
+      card.appendChild(button);
+
+    } else if (memberLikes.includes(member.id)) {
+      const button = document.createElement("button");
+      button.textContent = "Like Sent ❤️";
+      button.disabled = true;
+      card.appendChild(button);
+
+    } else {
+      const button = document.createElement("button");
+      button.textContent = "Like ❤️";
+      button.addEventListener("click", () => likeMember(member.id));
+      card.appendChild(button);
+    }
+
+    results.appendChild(card);
+  });
+}
+
+/* =====================================
+   LIKES AND MUTUAL CONNECTIONS
+===================================== */
+
+async function loadLikes() {
+  if (!currentMember) return;
+
+  const { data, error } = await db
+    .from("connections")
+    .select("liked_user_id")
+    .eq("user_id", currentMember.id);
+
+  if (error) {
+    console.error("Could not load likes:", error.message);
+    return;
+  }
+
+  memberLikes = (data || []).map(item => item.liked_user_id);
+}
+
+/* LIKE A MEMBER */
+
+async function likeMember(memberId) {
+  if (!currentMember) return;
+
+  if (memberId === currentMember.id) return;
+
+  const { error } = await db
+    .from("connections")
+    .insert({
+      user_id: currentMember.id,
+      liked_user_id: memberId
+    });
+
+  if (error) {
+    showMessage("Could not send like: " + error.message, "error");
+    return;
+  }
+
+  showMessage("Like sent successfully! ❤️");
+
+  await loadLikes();
+  await loadMutualConnections();
+  displayMembers(allMembers.filter(member => {
+    const query = el("memberSearch").value.toLowerCase().trim();
+    const gender = el("genderFilter").value;
+
+    return (
+      [member.display_name, member.city, member.bio]
+        .join(" ").toLowerCase().includes(query) &&
+      (!gender || member.gender === gender)
+    );
+  }));
+}
+
+/* LOAD MUTUAL CONNECTIONS */
+
+async function loadMutualConnections() {
+  if (!currentMember) return;
+
+  const [outgoingResult, incomingResult] = await Promise.all([
+    db.from("connections")
+      .select("liked_user_id")
+      .eq("user_id", currentMember.id),
+
+    db.from("connections")
+      .select("user_id")
+      .eq("liked_user_id", currentMember.id)
+  ]);
+
+  if (outgoingResult.error || incomingResult.error) {
+    console.error(
+      outgoingResult.error || incomingResult.error
+    );
+    return;
+  }
+
+  const outgoing = (outgoingResult.data || [])
+    .map(item => item.liked_user_id);
+
+  const incoming = (incomingResult.data || [])
+    .map(item => item.user_id);
+
+  mutualMembers = outgoing.filter(id => incoming.includes(id));
+
+  const contacts = el("chatContacts");
+  contacts.innerHTML = "";
+
+  if (!mutualMembers.length) {
+    contacts.textContent = "No mutual connections yet. Keep discovering!";
+    return;
+  }
+
+  const { data, error } = await db
+    .from("profiles")
+    .select("id,display_name,avatar_url")
+    .in("id", mutualMembers);
+
+  if (error) {
+    contacts.textContent = "Could not load connections.";
+    return;
+  }
+
+  (data || []).forEach(member => {
+    const item = document.createElement("div");
+    item.className = "contact-item";
+
+    const name = document.createElement("span");
+    name.textContent = "❤️ " + (member.display_name || "D&C Member");
+
+    const button = document.createElement("button");
+    button.textContent = "Chat 💬";
+    button.addEventListener("click", () => openConversation(member.id));
+
+    item.append(name, button);
+    contacts.appendChild(item);
+  });
+}
+
+/* =====================================
+   PRIVATE MESSAGING
+===================================== */
+
+async function openConversation(memberId) {
+  if (!mutualMembers.includes(memberId)) {
+    showMessage("You need a mutual connection before messaging.", "error");
+    return;
+  }
+
+  activeChatUser = memberId;
+
+  const member = allMembers.find(item => item.id === memberId);
+
+  el("chatTitle").textContent =
+    "Chat with " + (member?.display_name || "D&C Member");
+
+  el("chatWindow").classList.remove("hidden");
+
+  await loadMessages();
+
+  el("chatWindow").scrollIntoView({ behavior: "smooth" });
+}
+
+/* LOAD MESSAGES */
+
+async function loadMessages() {
+  if (!currentMember || !activeChatUser) return;
+
+  const messagesBox = el("chatMessages");
+  messagesBox.innerHTML = "<p>Loading messages...</p>";
+
+  const myId = currentMember.id;
+  const otherId = activeChatUser;
+
+  const { data, error } = await db
+    .from("messages")
+    .select("id,sender_id,recipient_id,content,created_at")
+    .or(
+      "and(sender_id.eq." + myId + ",recipient_id.eq." + otherId + ")," +
+      "and(sender_id.eq." + otherId + ",recipient_id.eq." + myId + ")"
+    )
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    messagesBox.textContent = "Could not load messages: " + error.message;
+    return;
+  }
+
+  messagesBox.innerHTML = "";
+
+  if (!data || !data.length) {
+    messagesBox.textContent = "Start your conversation! 🥂";
+    return;
+  }
+
+  data.forEach(message => {
+    const bubble = document.createElement("div");
+
+    bubble.className =
+      "chat-bubble " +
+      (message.sender_id === myId ? "mine" : "theirs");
+
+    const content = document.createElement("span");
+    content.textContent = message.content;
+
+    const time = document.createElement("small");
+    time.textContent = new Date(message.created_at).toLocaleString();
+
+    bubble.append(content, time);
+    messagesBox.appendChild(bubble);
+  });
+
+  messagesBox.scrollTop = messagesBox.scrollHeight;
+}
+
+/* SEND MESSAGE */
+
+el("messageForm").addEventListener("submit", async event => {
+  event.preventDefault();
+
+  if (!currentMember || !activeChatUser) return;
+
+  if (!mutualMembers.includes(activeChatUser)) {
+    showMessage("Messaging is only available for mutual connections.", "error");
+    return;
+  }
+
+  const content = el("messageInput").value.trim();
+
+  if (!content) return;
+
+  const button = event.submitter;
+  button.disabled = true;
+
+  try {
+    const { error } = await db
+      .from("messages")
+      .insert({
+        sender_id: currentMember.id,
+        recipient_id: activeChatUser,
+        content: content
+      });
+
+    if (error) throw error;
+
+    el("messageInput").value = "";
+
+    await loadMessages();
+
+  } catch (error) {
+    showMessage("Message could not be sent: " + error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+/* REFRESH CHAT */
+
+el("refreshChat").addEventListener("click", loadMessages);
+
+el("closeChat").addEventListener("click", () => {
+  activeChatUser = null;
+  el("chatWindow").classList.add("hidden");
+  el("chatMessages").innerHTML = "";
+});
+
+/* =====================================
+   LOGOUT
+===================================== */
+
+el("logoutButton").addEventListener("click", async () => {
+  const { error } = await db.auth.signOut();
+
+  if (error) {
+    showMessage("Logout failed: " + error.message, "error");
+    return;
+  }
+
+  currentMember = null;
+  activeChatUser = null;
+  allMembers = [];
+  memberLikes = [];
+  mutualMembers = [];
+
+  el("dashboard").classList.add("hidden");
+  el("authSection").classList.remove("hidden");
+  el("chatWindow").classList.add("hidden");
+
+  showMessage("You have logged out successfully.");
+});
+
+/* =====================================
+   RESTORE EXISTING SESSION
+===================================== */
+
+async function restoreSession() {
+  const { data, error } = await db.auth.getSession();
+
+  if (error) {
+    showMessage(error.message, "error");
     return;
   }
 
   if (data.session) {
-    loadProfile(data.session.user);
+    await loadDashboard(data.session.user);
   }
-});
+}
 
-/* HANDLE AUTH CHANGES */
-db.auth.onAuthStateChange((event, session) => {
-  if (event === "SIGNED_OUT") {
-    el("dashboard").classList.add("hidden");
-    el("authSection").classList.remove("hidden");
-  }
-});
+restoreSession();
+
 </script>
 
 </body>
